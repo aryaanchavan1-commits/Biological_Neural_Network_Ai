@@ -1,18 +1,17 @@
-# BIO-NN: Biologically Inspired Neural Network Research Framework
+# BIO-NN: Biological Superintelligence Research Framework
 
 ## Overview
 
-A modular, configurable research framework for experimenting with biologically-inspired neural network mechanisms. Tests whether biological mechanisms (synaptic plasticity, structural plasticity, sparse computation, neuromodulation) can improve continual learning, robustness, and efficiency.
+A modular, production-grade research framework for understanding biological superintelligence mechanisms. Built for 2026, BIO-NN provides composable modules spanning large-scale neuron models, hybrid attention architectures, scaling infrastructure, neuromorphic deployment, emergence detection, and safety alignment — enabling systematic study of critical dynamics in biological neural systems.
 
 ## Key Features
 
-- **Modular architecture** with replaceable components
-- **YAML-based configuration** — no code changes needed
-- **13+ neuron/plasticity/structure mechanisms** from computational neuroscience
-- **Continual learning benchmarks** for stability-plasticity evaluation
-- **Interactive visualization dashboard** for real-time monitoring
-- **Full experiment tracking** and reproducibility
-- **Ablation study support** for systematic mechanism evaluation
+- **Large-Scale Neuron Models** — Adaptive LIF, AdEx, dual-compartment, resonate-and-fire, spiking brain-inspired neurons
+- **Hybrid Attention Mechanisms** — Dendritic Self-Spine Attention (DSSA), spiking attention, bio-attention, memory routing
+- **Scaling Infrastructure** — Distributed training, mixed precision, gradient checkpointing, resource profiling
+- **Neuromorphic Deployment** — ONNX export, quantization, hardware benchmarking for Loihi/IntelTrueNorth
+- **Emergence Detection** — Criticality analysis, complexity metrics, functional zone mapping, phase transition monitoring
+- **Safety & Alignment** — Interpretability, controllability, value alignment, continuous monitoring
 
 ## Installation
 
@@ -30,6 +29,12 @@ cd bio-nn
 pip install -e .
 ```
 
+### Install dependencies directly
+
+```bash
+pip install torch numpy scipy matplotlib seaborn scikit-learn networkx pyyaml pandas tensorboard psutil
+```
+
 ### With dashboard (optional)
 
 ```bash
@@ -42,32 +47,115 @@ pip install -e ".[dashboard]"
 pip install -e ".[dev]"
 ```
 
-See [docs/installation.md](docs/installation.md) for detailed instructions including GPU setup and troubleshooting.
-
 ## Quick Start
 
-### Run a baseline SNN
+### Run baseline SNN
 
 ```bash
 python -m bio_nn.experiments.run --config configs/baseline_snn.yaml
 ```
 
-### Run BIO-NN (full biological mechanisms)
+### Run full BIO-NN
 
 ```bash
 python -m bio_nn.experiments.run --config configs/bio_v01.yaml
 ```
 
-### Run continual learning experiment
+### Study critical dynamics at the edge of chaos
 
 ```bash
-python -m bio_nn.experiments.run --config configs/bio_continual.yaml
+python -m bio_nn.experiments.run --config configs/superintelligence_criticality.yaml
+```
+
+### Benchmark neuromorphic deployment
+
+```bash
+python -m bio_nn.experiments.run --config configs/superintelligence_neuromorphic.yaml
+```
+
+### Run large-scale neuron experiment
+
+```bash
+python -m bio_nn.experiments.run --config configs/large_scale_neurons.yaml
+```
+
+### Run hybrid attention experiment
+
+```bash
+python -m bio_nn.experiments.run --config configs/hybrid_attention.yaml
 ```
 
 ### Launch the dashboard
 
 ```bash
 python -m bio_nn.visualization.dashboard.server
+```
+
+## Module Reference
+
+| Module | Purpose |
+|--------|---------|
+| `bio_nn.neurons` | Adaptive LIF, AdEx, dual-LIF, resonate-fire, spiking brain neurons |
+| `bio_nn.attention` | DSSA, spiking attention, bio-attention, memory routing |
+| `bio_nn.scaling` | Distributed training, mixed precision, profiling, checkpointing |
+| `bio_nn.neuromorphic` | Export, quantization, benchmarking for neuromorphic hardware |
+| `bio_nn.emergence` | Criticality, complexity, functional zones, phase monitoring |
+| `bio_nn.safety` | Alignment, controllability, interpretability, monitoring |
+| `bio_nn.plasticity` | STDP, homeostatic plasticity, structural plasticity |
+| `bio_nn.topology` | Sparse connectivity, small-world networks |
+| `bio_nn.dendrites` | Branching dendritic computation |
+| `bio_nn.neuromodulation` | Dopamine, serotonin-inspired modulation |
+
+## Example Usage
+
+### Custom neuron configuration
+
+```python
+from bio_nn.neurons.adaptive_lif import AdaptiveLIFNeuron
+
+neuron = AdaptiveLIFNeuron(
+    tau_mem=20.0,
+    tau_adapt=100.0,
+    threshold=1.0,
+    adapt_rate=0.01,
+)
+```
+
+### Dendritic self-spine attention
+
+```python
+from bio_nn.attention.dssa import DendriticSelfSpineAttention
+
+attn = DendriticSelfSpineAttention(
+    d_model=256,
+    n_heads=8,
+    dendritic_branches=4,
+    spine_threshold=0.5,
+)
+```
+
+### Criticality analysis
+
+```python
+from bio_nn.emergence.criticality import CriticalityAnalyzer
+
+analyzer = CriticalityAnalyzer(
+    spike_trains=spike_data,
+    bin_size=1.0,
+    max_lag=50,
+)
+results = analyzer.compute_branching_ratio()
+is_critical = analyzer.is_near_criticality(tolerance=0.05)
+```
+
+### Neuromorphic export
+
+```python
+from bio_nn.neuromorphic.exporter import NeuromorphicExporter
+
+exporter = NeuromorphicExporter(model)
+exporter.export_onnx("model.onnx", input_shape=(1, 784))
+exporter.quantize("model_quantized.onnx", bits=8)
 ```
 
 ## Project Structure
@@ -78,179 +166,64 @@ Bio_NN/
 ├── CHANGELOG.md
 ├── CITATION.cff
 ├── LICENSE
-├── pyproject.toml
+├── setup.py
+├── requirements.txt
 ├── configs/
 │   ├── baseline_snn.yaml
 │   ├── bio_v01.yaml
-│   └── bio_continual.yaml
+│   ├── bio_continual.yaml
+│   ├── superintelligence_criticality.yaml
+│   ├── superintelligence_neuromorphic.yaml
+│   ├── large_scale_neurons.yaml
+│   └── hybrid_attention.yaml
 ├── bio_nn/
-│   ├── __init__.py
-│   ├── neurons/
-│   │   ├── __init__.py
-│   │   ├── lif.py
-│   │   └── izhikevich.py
-│   ├── plasticity/
-│   │   ├── __init__.py
-│   │   ├── stdp.py
-│   │   └── homeostatic.py
-│   ├── structure/
-│   │   ├── __init__.py
-│   │   └── topology.py
-│   ├── encoding/
-│   │   ├── __init__.py
-│   │   └── rate.py
-│   ├── networks/
-│   │   ├── __init__.py
-│   │   └── snn.py
-│   ├── experiments/
-│   │   ├── __init__.py
-│   │   ├── run.py
-│   │   └── continual.py
-│   ├── metrics/
-│   │   ├── __init__.py
-│   │   └── accuracy.py
-│   ├── visualization/
-│   │   ├── __init__.py
-│   │   └── dashboard/
-│   │       ├── __init__.py
-│   │       └── server.py
-│   └── utils/
-│       ├── __init__.py
-│       └── seeding.py
+│   ├── neurons/          # LIF, AdEx, dual-LIF, resonate-fire, spiking brain
+│   ├── attention/        # DSSA, spiking attention, bio-attention
+│   ├── scaling/          # Distributed, mixed precision, profiling
+│   ├── neuromorphic/     # Export, quantize, benchmark
+│   ├── emergence/        # Criticality, complexity, functional zones
+│   ├── safety/           # Alignment, controllability, interpretability
+│   ├── plasticity/       # STDP, homeostatic, structural
+│   ├── topology/         # Sparse, small-world connectivity
+│   ├── dendrites/        # Branching computation
+│   ├── neuromodulation/  # Dopamine/serotonin modulation
+│   ├── encoders/         # Rate, temporal encoding
+│   ├── decoders/         # Spike decoding
+│   ├── memory/           # Working memory, memory routing
+│   ├── prediction/       # Predictive coding
+│   ├── training/         # Training loops
+│   ├── learning/         # Surrogate gradients, learning rules
+│   ├── core/             # Base classes
+│   ├── config/           # Configuration system
+│   ├── evaluation/       # Metrics and evaluation
+│   ├── experiments/      # Experiment runners
+│   ├── visualization/    # Dashboard, plotting
+│   └── utils/            # Seeding, helpers
 ├── tests/
-│   ├── __init__.py
-│   ├── test_neurons.py
-│   ├── test_plasticity.py
-│   └── test_networks.py
 ├── docs/
-│   ├── installation.md
-│   ├── architecture.md
-│   ├── extending_bio_nn.md
-│   └── reproducibility.md
-└── research/
-    ├── literature_review.md
-    ├── architecture_spec.md
-    ├── research_hypotheses.md
-    └── experiment_plan.md
+├── research/
+├── experiments/
+├── scripts/
+├── data/
+├── checkpoints/
+└── logs/
 ```
 
-## Configuration
+## Research Directions
 
-BIO-NN uses YAML-based configuration. All experiments are defined declaratively — no code changes needed.
-
-### Example: Baseline SNN
-
-```yaml
-# configs/baseline_snn.yaml
-network:
-  neuron_model: lif
-  hidden_sizes: [128, 128]
-  timestep: 1.0
-
-training:
-  optimizer: adam
-  learning_rate: 0.001
-  epochs: 50
-  batch_size: 32
-
-dataset:
-  name: mnist
-  data_dir: ./data
-
-plasticity: {}  # no plasticity for baseline
-
-structure: {}  # fixed topology
-```
-
-### Example: Full BIO-NN
-
-```yaml
-# configs/bio_v01.yaml
-network:
-  neuron_model: lif
-  hidden_sizes: [128, 128]
-  timestep: 1.0
-
-training:
-  optimizer: adam
-  learning_rate: 0.001
-  epochs: 50
-  batch_size: 32
-
-dataset:
-  name: mnist
-  data_dir: ./data
-
-plasticity:
-  stdp:
-    enabled: true
-    tau_plus: 20.0
-    tau_minus: 20.0
-    a_plus: 0.01
-    a_minus: 0.012
-  homeostatic:
-    enabled: true
-    target_rate: 0.05
-    adaptation_rate: 0.01
-
-structure:
-  small_world:
-    enabled: true
-    rewire_prob: 0.1
-```
-
-## Experiments
-
-### Running a single experiment
-
-```bash
-python -m bio_nn.experiments.run --config configs/bio_v01.yaml
-```
-
-### Running an ablation study
-
-```bash
-python -m bio_nn.experiments.run --config configs/ablation_stdp.yaml
-```
-
-### Running continual learning benchmarks
-
-```bash
-python -m bio_nn.experiments.run --config configs/bio_continual.yaml
-```
-
-### Results are saved to
-
-```
-results/
-├── {experiment_name}/
-│   ├── metrics.csv
-│   ├── config.yaml
-│   ├── checkpoints/
-│   └── plots/
-```
-
-## Documentation
-
-- [Installation Guide](docs/installation.md)
-- [Architecture Overview](docs/architecture.md)
-- [Extending BIO-NN](docs/extending_bio_nn.md)
-- [Reproducibility Guide](docs/reproducibility.md)
-
-## Research
-
-- [Literature Review](research/literature_review.md)
-- [Architecture Specification](research/architecture_spec.md)
-- [Research Hypotheses](research/research_hypotheses.md)
-- [Experiment Plan](research/experiment_plan.md)
+1. **Critical Dynamics** — Mapping phase transitions between ordered and chaotic regimes in biological-scale networks
+2. **Emergent Computation** — How functional zones and memory routing arise from local plasticity rules
+3. **Neuromorphic Scaling** — Efficient deployment of biological models on brain-inspired hardware
+4. **Safety Alignment** — Ensuring biological superintelligence mechanisms remain interpretable and controllable
+5. **Hybrid Architectures** — Combining dendritic attention with spiking dynamics for scalable computation
 
 ## Citation
 
 ```bibtex
 @software{bio_nn2026,
-  title={BIO-NN: Biologically Inspired Neural Network Research Framework},
+  title={BIO-NN: Biological Superintelligence Research Framework},
   year={2026},
-  version={0.1.0},
+  version={0.2.0},
   url={https://github.com/your-repo/bio-nn}
 }
 ```

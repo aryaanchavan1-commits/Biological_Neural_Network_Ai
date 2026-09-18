@@ -1,0 +1,164 @@
+experiment:
+  name: "superintelligence_criticality"
+  description: "Study critical dynamics and phase transitions in biological neural networks"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "adaptive_lif"
+  tau_mem: 20.0
+  tau_adapt: 100.0
+  threshold: 1.0
+  threshold_adapt_rate: 0.01
+  reset_mechanism: "subtract"
+  refractory_period: 0
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 512}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 50
+  max_rate: 100
+
+synapse:
+  type: "dynamic"
+  weight_init:
+    method: "xavier"
+    gain: 1.0
+  weight_clip:
+    min: 0.0
+    max: 1.0
+
+plasticity:
+  enabled: true
+  rules:
+    - type: "stdp"
+      learning_rate: 0.01
+      tau_pre: 20.0
+      tau_post: 20.0
+      w_max: 1.0
+      w_min: 0.0
+    - type: "homeostatic"
+      target_rate: 0.05
+      rate_window: 100
+      adaptation_rate: 0.01
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+    criterion: "activity_based"
+    activity_threshold: 0.1
+  pruning:
+    enabled: true
+    rate: 0.005
+    criterion: "weight_based"
+    weight_threshold: 0.01
+
+dendrites:
+  enabled: true
+  branches: 4
+  nonlinearity: "relu"
+  compartment_combination: "multiply"
+
+topology:
+  type: "small_world"
+  rewire_prob: 0.1
+  initial_connectivity: 0.5
+
+emergence:
+  enabled: true
+  criticality:
+    enabled: true
+    branch_ratio_target: 1.0
+    branching_window: 100
+    avalanche_analysis: true
+    avalanche_slope_range: [1.0, 2.0]
+    spatial_correlation: true
+    temporal_correlation: true
+    criticality_window: 1000
+    perturbation_amplitude: 0.1
+    recovery_threshold: 0.95
+  complexity:
+    enabled: true
+    lyapunov: true
+    lyapunov_window: 500
+    entropy: true
+    entropy_window: 100
+    transfer_entropy: true
+    te_lag: 5
+  functional_zones:
+    enabled: true
+    detection_method: "activity_clustering"
+    min_zone_size: 10
+    stability_threshold: 0.8
+    zone_tracking: true
+  monitoring:
+    enabled: true
+    phase_transitions: true
+    criticality_tracking: true
+    complexity_tracking: true
+    zone_tracking: true
+    log_interval: 100
+
+safety:
+  enabled: true
+  interpretability:
+    enabled: true
+    feature_importance: true
+    activation_attribution: true
+  monitoring:
+    enabled: true
+    anomaly_detection: true
+    drift_detection: true
+    alert_threshold: 0.8
+
+learning:
+  rule: "surrogate_gradient"
+  surrogate:
+    type: "fast_sigmoid"
+    slope: 5.0
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 50
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1"
+    - "spike_count"
+    - "firing_rate"
+    - "sparsity"
+    - "branching_ratio"
+    - "avalanche_slope"
+    - "lyapunov_exponent"
+    - "functional_zone_count"
+  save_predictions: true
+
+visualization:
+  enabled: true
+  spike_raster: true
+  membrane_potential: true
+  weight_heatmap: true
+  firing_rates: true
+  criticality_plot: true
+  avalanche_distribution: true
+  phase_diagram: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

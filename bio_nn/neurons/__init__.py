@@ -11,11 +11,19 @@ from .base import BaseNeuron
 from .lif import LIFNeuron
 from .adaptive_lif import AdaptiveLIFNeuron
 from .izhikevich import IzhikevichNeuron, IZHIKEVICH_PRESETS
+from .dual_lif import DualLIFNeuron
+from .spiking_brain import SpikingBrainNeuron
+from .resonate_fire import ResonateAndFireNeuron
+from .adex import AdExNeuron
 
 NEURON_REGISTRY: Dict[str, Type[BaseNeuron]] = {
     "lif": LIFNeuron,
     "adaptive_lif": AdaptiveLIFNeuron,
     "izhikevich": IzhikevichNeuron,
+    "dual_lif": DualLIFNeuron,
+    "spiking_brain": SpikingBrainNeuron,
+    "resonate_fire": ResonateAndFireNeuron,
+    "adex": AdExNeuron,
 }
 
 
@@ -49,6 +57,10 @@ __all__ = [
     "AdaptiveLIFNeuron",
     "IzhikevichNeuron",
     "IZHIKEVICH_PRESETS",
+    "DualLIFNeuron",
+    "SpikingBrainNeuron",
+    "ResonateAndFireNeuron",
+    "AdExNeuron",
     "NEURON_REGISTRY",
     "create_neuron",
 ]

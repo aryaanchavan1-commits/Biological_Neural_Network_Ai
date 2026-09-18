@@ -1,0 +1,172 @@
+experiment:
+  name: "hybrid_attention"
+  description: "Hybrid attention mechanisms with dendritic self-spine and spiking attention"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "adaptive_lif"
+  tau_mem: 20.0
+  tau_adapt: 100.0
+  threshold: 1.0
+  threshold_adapt_rate: 0.01
+  reset_mechanism: "subtract"
+  refractory_period: 0
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 25
+  max_rate: 100
+
+attention:
+  enabled: true
+  mechanisms:
+    - type: "dssa"
+      d_model: 256
+      n_heads: 8
+      dendritic_branches: 4
+      spine_threshold: 0.5
+      spine_decay: 0.9
+      attention_dropout: 0.1
+      use_topk_spines: true
+      topk_k: 32
+    - type: "spiking"
+      d_model: 256
+      n_heads: 4
+      temporal_window: 10
+      spike_weight_method: "rate"
+      attention_dropout: 0.1
+    - type: "bio_attention"
+      d_model: 256
+      n_heads: 4
+      neurotransmitter: "dopamine"
+      modulation_strength: 0.5
+      attention_dropout: 0.1
+  routing:
+    enabled: true
+    type: "memory_routing"
+    memory_size: 64
+    routing_heads: 4
+    gating: true
+    gating_temperature: 1.0
+
+synapse:
+  type: "dynamic"
+  weight_init:
+    method: "xavier"
+    gain: 1.0
+  weight_clip:
+    min: 0.0
+    max: 1.0
+
+plasticity:
+  enabled: true
+  rules:
+    - type: "stdp"
+      learning_rate: 0.01
+      tau_pre: 20.0
+      tau_post: 20.0
+      w_max: 1.0
+      w_min: 0.0
+    - type: "homeostatic"
+      target_rate: 0.05
+      rate_window: 100
+      adaptation_rate: 0.01
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+    criterion: "activity_based"
+    activity_threshold: 0.1
+  pruning:
+    enabled: true
+    rate: 0.005
+    criterion: "weight_based"
+    weight_threshold: 0.01
+
+dendrites:
+  enabled: true
+  branches: 4
+  nonlinearity: "relu"
+  compartment_combination: "multiply"
+
+topology:
+  type: "small_world"
+  rewire_prob: 0.1
+  initial_connectivity: 0.5
+
+emergence:
+  enabled: true
+  criticality:
+    enabled: true
+    branch_ratio_target: 1.0
+  complexity:
+    enabled: true
+    lyapunov: true
+    entropy: true
+  functional_zones:
+    enabled: true
+    detection_method: "attention_clustering"
+
+safety:
+  enabled: true
+  interpretability:
+    enabled: true
+    feature_importance: true
+    attention_visualization: true
+  monitoring:
+    enabled: true
+    anomaly_detection: true
+
+learning:
+  rule: "surrogate_gradient"
+  surrogate:
+    type: "fast_sigmoid"
+    slope: 5.0
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 50
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1"
+    - "spike_count"
+    - "firing_rate"
+    - "sparsity"
+    - "attention_entropy"
+    - "spine_utilization"
+    - "routing_efficiency"
+  save_predictions: true
+
+visualization:
+  enabled: true
+  spike_raster: true
+  membrane_potential: true
+  weight_heatmap: true
+  firing_rates: true
+  attention_heatmap: true
+  dendritic_tree: true
+  spine_activation: true
+  routing_gates: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

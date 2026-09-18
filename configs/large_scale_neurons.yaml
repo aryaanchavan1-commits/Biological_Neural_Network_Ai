@@ -1,0 +1,173 @@
+experiment:
+  name: "large_scale_neurons"
+  description: "Large-scale neuron model comparison across multiple biophysical models"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "adaptive_lif"
+  tau_mem: 20.0
+  tau_adapt: 100.0
+  threshold: 1.0
+  threshold_adapt_rate: 0.01
+  reset_mechanism: "subtract"
+  refractory_period: 0
+  # Available models: lif, adaptive_lif, izhikevich, adex, dual_lif, resonate_fire, spiking_brain
+  comparison:
+    enabled: true
+    models:
+      - name: "lif"
+        tau_mem: 20.0
+        threshold: 1.0
+      - name: "adaptive_lif"
+        tau_mem: 20.0
+        tau_adapt: 100.0
+        threshold: 1.0
+        adapt_rate: 0.01
+      - name: "izhikevich"
+        a: 0.02
+        b: 0.2
+        c: -65.0
+        d: 8.0
+        cell_type: "rs"
+      - name: "adex"
+        tau_mem: 20.0
+        tau_adapt: 100.0
+        threshold: 1.0
+        adapt_rate: 0.01
+        adaptation_current: 0.5
+      - name: "dual_lif"
+        tau_mem_somatic: 20.0
+        tau_mem_dendritic: 50.0
+        coupling_strength: 0.5
+      - name: "resonate_fire"
+        tau_syn: 5.0
+        tau_mem: 20.0
+        threshold: 1.0
+      - name: "spiking_brain"
+        n_neurons: 256
+        plasticity_rate: 0.01
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 512}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 50
+  max_rate: 100
+
+synapse:
+  type: "dynamic"
+  weight_init:
+    method: "xavier"
+    gain: 1.0
+  weight_clip:
+    min: 0.0
+    max: 1.0
+
+plasticity:
+  enabled: true
+  rules:
+    - type: "stdp"
+      learning_rate: 0.01
+      tau_pre: 20.0
+      tau_post: 20.0
+      w_max: 1.0
+      w_min: 0.0
+    - type: "homeostatic"
+      target_rate: 0.05
+      rate_window: 100
+      adaptation_rate: 0.01
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+    criterion: "activity_based"
+    activity_threshold: 0.1
+  pruning:
+    enabled: true
+    rate: 0.005
+    criterion: "weight_based"
+    weight_threshold: 0.01
+
+dendrites:
+  enabled: true
+  branches: 8
+  nonlinearity: "relu"
+  compartment_combination: "multiply"
+
+topology:
+  type: "small_world"
+  rewire_prob: 0.15
+  initial_connectivity: 0.5
+
+emergence:
+  enabled: true
+  criticality:
+    enabled: true
+    branch_ratio_target: 1.0
+    avalanche_analysis: true
+  complexity:
+    enabled: true
+    lyapunov: true
+    entropy: true
+  functional_zones:
+    enabled: true
+    detection_method: "activity_clustering"
+
+safety:
+  enabled: true
+  interpretability:
+    enabled: true
+    feature_importance: true
+  monitoring:
+    enabled: true
+    anomaly_detection: true
+
+learning:
+  rule: "surrogate_gradient"
+  surrogate:
+    type: "fast_sigmoid"
+    slope: 5.0
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 50
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1"
+    - "spike_count"
+    - "firing_rate"
+    - "sparsity"
+    - "parameter_count"
+    - "flops"
+    - "memory_footprint"
+  save_predictions: true
+
+visualization:
+  enabled: true
+  spike_raster: true
+  membrane_potential: true
+  weight_heatmap: true
+  firing_rates: true
+  neuron_comparison: true
+  model_benchmark_table: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

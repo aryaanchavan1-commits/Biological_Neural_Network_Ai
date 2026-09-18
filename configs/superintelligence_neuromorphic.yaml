@@ -1,0 +1,175 @@
+experiment:
+  name: "superintelligence_neuromorphic"
+  description: "Neuromorphic deployment benchmarking and hardware optimization"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "adaptive_lif"
+  tau_mem: 20.0
+  tau_adapt: 100.0
+  threshold: 1.0
+  threshold_adapt_rate: 0.01
+  reset_mechanism: "subtract"
+  refractory_period: 0
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 25
+  max_rate: 100
+
+synapse:
+  type: "dynamic"
+  weight_init:
+    method: "xavier"
+    gain: 1.0
+  weight_clip:
+    min: 0.0
+    max: 1.0
+
+plasticity:
+  enabled: true
+  rules:
+    - type: "stdp"
+      learning_rate: 0.01
+      tau_pre: 20.0
+      tau_post: 20.0
+      w_max: 1.0
+      w_min: 0.0
+    - type: "homeostatic"
+      target_rate: 0.05
+      rate_window: 100
+      adaptation_rate: 0.01
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+    criterion: "activity_based"
+    activity_threshold: 0.1
+  pruning:
+    enabled: true
+    rate: 0.005
+    criterion: "weight_based"
+    weight_threshold: 0.01
+
+topology:
+  type: "sparse"
+  sparsity: 0.5
+  initial_connectivity: 0.5
+
+neuromorphic:
+  enabled: true
+  export:
+    format: "onnx"
+    opset_version: 17
+    input_shape: [1, 784]
+    dynamic_axes: true
+  quantization:
+    enabled: true
+    method: "per_tensor"
+    bits: 8
+    calibration_batches: 10
+    symmetric: true
+  benchmarks:
+    enabled: true
+    targets:
+      - "cpu"
+      - "gpu"
+      - "loihi"
+      - "truenorth"
+    metrics:
+      - "latency"
+      - "throughput"
+      - "power"
+      - "energy_per_inference"
+      - "area"
+    num_inference_runs: 100
+    batch_sizes: [1, 8, 16, 32, 64]
+  optimization:
+    fuse_linear_relu: true
+    sparse_weight_encoding: true
+    temporal_compression: true
+
+scaling:
+  enabled: true
+  distributed:
+    enabled: false
+    backend: "nccl"
+    world_size: 1
+    rank: 0
+  mixed_precision:
+    enabled: true
+    dtype: "float16"
+    loss_scale: "dynamic"
+  checkpointing:
+    enabled: true
+    granularity: "layer"
+  profiler:
+    enabled: true
+    profile_memory: true
+    profile_bandwidth: true
+    flop_counter: true
+  resource_manager:
+    max_memory_gb: 8.0
+    max_power_watts: 50.0
+    auto_scale: true
+
+safety:
+  enabled: true
+  interpretability:
+    enabled: true
+    feature_importance: true
+  monitoring:
+    enabled: true
+    anomaly_detection: true
+
+learning:
+  rule: "surrogate_gradient"
+  surrogate:
+    type: "fast_sigmoid"
+    slope: 5.0
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 30
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1"
+    - "spike_count"
+    - "firing_rate"
+    - "sparsity"
+    - "latency_ms"
+    - "throughput_inferences_per_sec"
+    - "power_mw"
+    - "energy_per_inference_pj"
+  save_predictions: true
+
+visualization:
+  enabled: true
+  spike_raster: true
+  membrane_potential: true
+  weight_heatmap: true
+  firing_rates: true
+  hardware_comparison: true
+  latency_distribution: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

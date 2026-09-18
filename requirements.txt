@@ -15,12 +15,15 @@ tensorboard>=2.13.0
 
 # Data handling
 pandas>=2.0.0
+
+# Scientific computing
+scipy>=1.10.0
+
+# Machine learning utilities
 scikit-learn>=1.2.0
 
-# Web dashboard (optional)
-fastapi>=0.100.0
-uvicorn>=0.23.0
-jinja2>=3.1.0
+# Graph analysis
+networkx>=3.1
 
 # Profiling
 psutil>=5.9.0
@@ -28,6 +31,11 @@ psutil>=5.9.0
 # Testing
 pytest>=7.4.0
 pytest-cov>=4.1.0
+
+# Web dashboard (optional)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+jinja2>=3.1.0
 
 # Optional: Brian2 for biological simulation
 # brian2>=2.5.0
