@@ -1,0 +1,238 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO-NN — Configuration</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0e17;--surface:#111827;--surface2:#1a2236;--border:#1e293b;
+    --text:#e2e8f0;--text-dim:#94a3b8;--accent:#22d3ee;--accent2:#818cf8;
+    --green:#34d399;--red:#f87171;--yellow:#fbbf24;--radius:8px;
+  }
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  .nav{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:50}
+  .nav .logo{font-weight:700;font-size:1.15rem;color:var(--accent)}
+  .nav a{color:var(--text-dim);font-size:.875rem;padding:4px 10px;border-radius:var(--radius)}.nav a:hover,.nav a.active{color:var(--text);background:var(--surface2)}
+  .container{max-width:1280px;margin:0 auto;padding:32px 24px}
+  h1{font-size:1.75rem;margin-bottom:4px}
+  h2{font-size:1.15rem;margin:28px 0 14px}
+  .desc{color:var(--text-dim);margin-bottom:28px;font-size:.925rem;max-width:720px}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+  .card h3{font-size:.9rem;color:var(--text-dim);margin-bottom:14px;text-transform:uppercase;letter-spacing:.04em}
+
+  .section{margin-bottom:16px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .section-header{display:flex;align-items:center;gap:8px;padding:12px 16px;background:var(--surface2);cursor:pointer;user-select:none;transition:background .15s}
+  .section-header:hover{background:var(--border)}
+  .section-header .arrow{font-size:.7rem;color:var(--text-dim);transition:transform .2s;width:16px;text-align:center}
+  .section-header.open .arrow{transform:rotate(90deg)}
+  .section-header .title{font-weight:600;font-size:.9rem;flex:1}
+  .section-header .tag{font-size:.7rem;padding:2px 8px;border-radius:999px;background:var(--accent);color:#000;font-weight:600}
+  .section-body{display:none;padding:14px 16px;background:var(--surface)}
+  .section-body.open{display:block}
+
+  pre.json{font-family:'Cascadia Code','Fira Code',monospace;font-size:.8rem;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-all;margin:0}
+  .json .key{color:var(--accent)}
+  .json .str{color:var(--green)}
+  .json .num{color:var(--yellow)}
+  .json .bool{color:var(--accent2)}
+  .json .null{color:var(--red)}
+
+  .component-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+  .comp-item{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);font-size:.85rem}
+  .comp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .comp-on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .comp-off{background:#475569}
+
+  .arch-flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;padding:16px 0}
+  .arch-block{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-align:center;min-width:110px}
+  .arch-block .name{font-weight:600;font-size:.85rem;margin-bottom:2px}
+  .arch-block .size{font-size:.75rem;color:var(--text-dim)}
+  .arch-arrow{color:var(--accent);font-size:1.2rem;padding:0 6px}
+
+  .resource-bar{margin-bottom:12px}
+  .resource-label{display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:4px}
+  .resource-label span:first-child{color:var(--text-dim)}
+  .resource-track{height:10px;border-radius:5px;background:var(--border);overflow:hidden}
+  .resource-fill{height:100%;border-radius:5px;transition:width .5s}
+  .resource-fill.params{background:var(--accent)}
+  .resource-fill.memory{background:var(--accent2)}
+  .resource-fill.compute{background:var(--green)}
+
+  @media(max-width:800px){.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="logo">BIO-NN</span>
+  <a href="/dashboard">Experiments</a>
+  <a href="/compare">Compare</a>
+  <a href="/robustness">Robustness</a>
+  <a href="/config" class="active">Config</a>
+  <a href="/about">About</a>
+</nav>
+
+<div class="container">
+  <h1>Configuration</h1>
+  <p class="desc">View and verify the experiment configuration. All BIO-NN experiments are fully configurable through YAML files &mdash; no code changes needed. Each component (neurons, plasticity, structure, memory, etc.) can be enabled/disabled and parameterized independently.</p>
+
+  <div class="grid-2">
+    <div>
+      <h2>Configuration Sections</h2>
+      <div id="configSections"></div>
+    </div>
+    <div>
+      <h2>Component Status</h2>
+      <div class="card">
+        <div class="component-grid" id="compGrid"></div>
+      </div>
+
+      <h2>Architecture Summary</h2>
+      <div class="card">
+        <div class="arch-flow" id="archFlow"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Estimated Resource Usage</h2>
+  <div class="card" id="resourceCard"></div>
+</div>
+
+<script>
+var rawConfig = {{ data | tojson }};
+
+function highlightJSON(obj, indent) {
+  indent = indent || 0;
+  var pad = '  '.repeat(indent);
+  var pad1 = '  '.repeat(indent + 1);
+  if (obj === null) return '<span class="null">null</span>';
+  if (typeof obj === 'boolean') return '<span class="bool">' + obj + '</span>';
+  if (typeof obj === 'number') return '<span class="num">' + obj + '</span>';
+  if (typeof obj === 'string') return '<span class="str">"' + obj.replace(/"/g, '\\"') + '"</span>';
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return '[]';
+    var items = obj.map(function(v) { return pad1 + highlightJSON(v, indent + 1); });
+    return '[\n' + items.join(',\n') + '\n' + pad + ']';
+  }
+  var keys = Object.keys(obj);
+  if (keys.length === 0) return '{}';
+  var lines = keys.map(function(k) {
+    return pad1 + '<span class="key">"' + k + '"</span>: ' + highlightJSON(obj[k], indent + 1);
+  });
+  return '{\n' + lines.join(',\n') + '\n' + pad + '}';
+}
+
+function renderConfigSections() {
+  var container = document.getElementById('configSections');
+  var sections = typeof rawConfig === 'object' && rawConfig !== null ? Object.keys(rawConfig) : [];
+  if (!sections.length) {
+    container.innerHTML = '<div class="card"><p style="color:var(--text-dim)">No configuration data available.</p></div>';
+    return;
+  }
+  container.innerHTML = sections.map(function(key, i) {
+    var isOpen = i === 0 ? ' open' : '';
+    var val = rawConfig[key];
+    var tag = '';
+    if (typeof val === 'object' && val !== null) {
+      var kCount = Object.keys(val).length;
+      tag = '<span class="tag">' + kCount + ' keys</span>';
+    }
+    return '<div class="section">' +
+      '<div class="section-header' + isOpen + '" onclick="toggleSection(this)">' +
+      '<span class="arrow">' + (i === 0 ? '&#9660;' : '&#9654;') + '</span>' +
+      '<span class="title">' + key + '</span>' +
+      tag +
+      '</div>' +
+      '<div class="section-body' + isOpen + '">' +
+      '<pre class="json">' + highlightJSON(val) + '</pre>' +
+      '</div></div>';
+  }).join('');
+}
+
+function toggleSection(header) {
+  var body = header.nextElementSibling;
+  var isOpen = header.classList.contains('open');
+  header.classList.toggle('open', !isOpen);
+  body.classList.toggle('open', !isOpen);
+  header.querySelector('.arrow').innerHTML = isOpen ? '&#9654;' : '&#9660;';
+}
+
+function renderComponents() {
+  var grid = document.getElementById('compGrid');
+  var components = [
+    {name: 'Neuron Model', key: 'neuron_model'},
+    {name: 'Neural Coding', key: 'neural_coding'},
+    {name: 'Synaptic Plasticity', key: 'synaptic_plasticity'},
+    {name: 'Dendritic Compute', key: 'dendritic_computation'},
+    {name: 'Structural Plasticity', key: 'structural_plasticity'},
+    {name: 'Continual Learning', key: 'continual_learning'},
+    {name: 'Memory System', key: 'memory'},
+    {name: 'Predictive Process', key: 'predictive_processing'},
+    {name: 'Neuromodulation', key: 'neuromodulation'},
+    {name: 'Sparse Compute', key: 'sparse_computation'},
+    {name: 'Learning Algorithm', key: 'learning_algorithm'},
+    {name: 'Robustness Module', key: 'robustness'},
+    {name: 'Interpretability', key: 'interpretability'}
+  ];
+  grid.innerHTML = components.map(function(c) {
+    var section = rawConfig[c.key] || rawConfig.biological_mechanisms?.[c.key] || rawConfig.mechanisms?.[c.key];
+    var enabled = section === true || section === 'enabled' || (typeof section === 'object' && section !== null);
+    return '<div class="comp-item"><span class="comp-dot ' + (enabled ? 'comp-on' : 'comp-off') + '"></span>' + c.name + '</div>';
+  }).join('');
+}
+
+function renderArchitecture() {
+  var flow = document.getElementById('archFlow');
+  var layers = [];
+  var cfg = rawConfig;
+  var inputSize = (cfg.model || cfg.network || {}).input_size || (cfg.data || {}).input_dim || 784;
+  layers.push({name: 'Input', size: inputSize});
+  var hiddenLayers = (cfg.model || cfg.network || {}).hidden_layers || cfg.hidden_sizes || [128, 64];
+  if (!Array.isArray(hiddenLayers)) hiddenLayers = [hiddenLayers];
+  hiddenLayers.forEach(function(h, i) {
+    layers.push({name: 'Hidden ' + (i + 1), size: h});
+  });
+  var outputSize = (cfg.model || cfg.network || {}).output_size || (cfg.data || {}).num_classes || 10;
+  layers.push({name: 'Output', size: outputSize});
+  flow.innerHTML = layers.map(function(l, i) {
+    var block = '<div class="arch-block"><div class="name">' + l.name + '</div><div class="size">' + l.size + ' units</div></div>';
+    if (i < layers.length - 1) block += '<span class="arch-arrow">&rarr;</span>';
+    return block;
+  }).join('');
+}
+
+function renderResources() {
+  var card = document.getElementById('resourceCard');
+  var cfg = rawConfig.model || rawConfig.network || {};
+  var inputSize = cfg.input_size || 784;
+  var hiddenLayers = cfg.hidden_layers || [128, 64];
+  if (!Array.isArray(hiddenLayers)) hiddenLayers = [hiddenLayers];
+  var outputSize = cfg.output_size || 10;
+  var allLayers = [inputSize].concat(hiddenLayers).concat([outputSize]);
+  var params = 0;
+  for (var i = 0; i < allLayers.length - 1; i++) {
+    params += allLayers[i] * allLayers[i + 1] + allLayers[i + 1];
+  }
+  var memMB = (params * 4 / 1024 / 1024).toFixed(2);
+  var flops = params * 2;
+  var maxParams = Math.max(params, 1000000);
+  var paramPct = Math.min(params / maxParams * 100, 100);
+  var memPct = Math.min(parseFloat(memMB) / 100 * 100, 100);
+  var computePct = Math.min(flops / 10000000 * 100, 100);
+  card.innerHTML =
+    '<div class="resource-bar"><div class="resource-label"><span>Parameter Count</span><span>' + params.toLocaleString() + '</span></div><div class="resource-track"><div class="resource-fill params" style="width:' + paramPct + '%"></div></div></div>' +
+    '<div class="resource-bar"><div class="resource-label"><span>Memory (float32)</span><span>' + memMB + ' MB</span></div><div class="resource-track"><div class="resource-fill memory" style="width:' + memPct + '%"></div></div></div>' +
+    '<div class="resource-bar"><div class="resource-label"><span>FLOPs (est.)</span><span>' + flops.toLocaleString() + '</span></div><div class="resource-track"><div class="resource-fill compute" style="width:' + computePct + '%"></div></div></div>';
+}
+
+renderConfigSections();
+renderComponents();
+renderArchitecture();
+renderResources();
+</script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synaptic Plasticity — BIO-NN Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2332;--border:#1e293b;
+  --text:#e2e8f0;--muted:#64748b;--accent:#38bdf8;--accent2:#818cf8;
+  --green:#34d399;--red:#f87171;--yellow:#fbbf24;--purple:#a78bfa;
+}
+body{background:var(--bg);color:var(--text);font-family:'SF Mono','Cascadia Code','Fira Code',monospace;min-height:100vh}
+.header{padding:24px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px}
+.header h1{font-size:18px;font-weight:600;letter-spacing:-0.5px}
+.header .tag{font-size:11px;padding:3px 10px;border-radius:100px;background:rgba(56,189,248,0.12);color:var(--accent);border:1px solid rgba(56,189,248,0.2)}
+.header .exp-id{margin-left:auto;font-size:12px;color:var(--muted)}
+.main{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);padding:1px}
+.panel{background:var(--surface);padding:20px;min-height:320px;position:relative}
+.panel-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:'';width:3px;height:12px;background:var(--accent);border-radius:2px}
+canvas{width:100%!important;border-radius:6px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px}
+.stat-value{font-size:22px;font-weight:700;color:var(--accent)}
+.stat-value.green{color:var(--green)}
+.stat-value.purple{color:var(--purple)}
+.stat-value.yellow{color:var(--yellow)}
+.description{grid-column:1/-1;background:var(--surface2);padding:24px 32px;border-top:1px solid var(--border);font-size:13px;line-height:1.7;color:var(--muted)}
+.description strong{color:var(--text)}
+.net-canvas-wrap{position:relative;width:100%;height:260px;background:var(--surface2);border-radius:8px;overflow:hidden}
+.net-canvas-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%}
+.epoch-scrubber{position:absolute;bottom:12px;left:16px;right:16px;display:flex;align-items:center;gap:10px}
+.epoch-scrubber label{font-size:10px;color:var(--muted);white-space:nowrap}
+.epoch-scrubber input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+.epoch-scrubber .val{font-size:11px;color:var(--accent);min-width:50px;text-align:right}
+.legend-row{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.legend-swatch{width:10px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Synaptic Plasticity</h1>
+  <span class="tag">BIO-NN</span>
+  <span class="exp-id">Experiment: {{ exp_id }}</span>
+</div>
+
+<div class="main">
+
+  <!-- 1. Weight Change Heatmap -->
+  <div class="panel">
+    <div class="panel-title">Weight Change Heatmap</div>
+    <canvas id="heatmapCanvas" height="260"></canvas>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-swatch" style="background:#0a0e17"></div>Early Training</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--accent)"></div>Late Training</div>
+      <div class="legend-item" style="margin-left:auto;font-size:10px">← Low | High →</div>
+    </div>
+  </div>
+
+  <!-- 2. Weight Evolution Over Time -->
+  <div class="panel">
+    <div class="panel-title">Weight Evolution Over Time</div>
+    <canvas id="weightEvolutionChart" height="260"></canvas>
+  </div>
+
+  <!-- 3. Plasticity Event Visualization -->
+  <div class="panel">
+    <div class="panel-title">Plasticity Event Visualization</div>
+    <div class="net-canvas-wrap">
+      <canvas id="networkCanvas"></canvas>
+      <div class="epoch-scrubber">
+        <label>Epoch</label>
+        <input type="range" id="epochSlider" min="0" max="100" value="0">
+        <span class="val" id="epochVal">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. STDP Timing Diagram -->
+  <div class="panel">
+    <div class="panel-title">STDP Timing Diagram</div>
+    <canvas id="stdpCanvas" height="260"></canvas>
+  </div>
+
+  <!-- 5. Plasticity Statistics Panel -->
+  <div class="panel" style="grid-column:1/-1">
+    <div class="panel-title">Plasticity Statistics</div>
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="stat-label">Total Weight Changes / Epoch</div><div class="stat-value" id="statTotalChanges">—</div></div>
+      <div class="stat-card"><div class="stat-label">% Connections Changed</div><div class="stat-value green" id="statPercentChanged">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mean Absolute Change</div><div class="stat-value purple" id="statMeanAbs">—</div></div>
+      <div class="stat-card"><div class="stat-label">Max Change</div><div class="stat-value yellow" id="statMaxChange">—</div></div>
+    </div>
+  </div>
+
+  <!-- 6. Description -->
+  <div class="description">
+    <strong>Synaptic plasticity</strong> is the biological process by which connections strengthen or weaken based on activity.
+    <strong>STDP</strong> (Spike-Timing-Dependent Plasticity) adjusts weights based on the relative timing of pre- and post-synaptic spikes —
+    <em>"neurons that fire together wire together."</em> Homeostatic plasticity scales weights to maintain stable activity levels.
+  </div>
+
+</div>
+
+<script>
+const DATA = {{ data | safe }};
+
+// ── Utility ──
+function getCtx(id){ return document.getElementById(id).getContext('2d'); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function heatColor(v){
+  // 0→dark, 0.5→cyan, 1→white
+  v = clamp(v,0,1);
+  const r = Math.round(lerp(10,56,Math.min(v*2,1)) + lerp(0,200,v>0.5?(v-0.5)*2:0));
+  const g = Math.round(lerp(14,189,Math.min(v*2,1)) + lerp(0,60,v>0.5?(v-0.5)*2:0));
+  const b = Math.round(lerp(23,248,Math.min(v*2,1)));
+  return `rgb(${r},${g},${b})`;
+}
+
+// ── 1. Weight Change Heatmap ──
+(function(){
+  const canvas = document.getElementById('heatmapCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.clientWidth - 40;
+  canvas.width = W * 2; canvas.height = 260 * 2;
+  canvas.style.width = W + 'px'; canvas.style.height = '260px';
+  ctx.scale(2,2);
+
+  const layers = DATA.weight_changes || [];
+  const rows = layers.length || 6;
+  const cols = 40;
+  const cellW = (W - 80) / cols;
+  const cellH = 200 / rows;
+  const ox = 60, oy = 10;
+
+  // Generate heatmap data
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      let val = (layers[r] && layers[r][c]) || (Math.sin(r*0.7+c*0.3)*0.5+0.5)*(c/cols);
+      ctx.fillStyle = heatColor(val);
+      ctx.fillRect(ox + c*cellW, oy + r*cellH, cellW-1, cellH-2);
+    }
+  }
+
+  // Labels
+  ctx.fillStyle = '#64748b'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+  for(let r=0;r<rows;r++){
+    ctx.fillText('L'+r, ox-8, oy + r*cellH + cellH/2 + 3);
+  }
+  ctx.textAlign = 'center';
+  ctx.fillText('Early', ox + 20, oy + rows*cellH + 16);
+  ctx.fillText('→ Late', ox + cols*cellW - 20, oy + rows*cellH + 16);
+})();
+
+// ── 2. Weight Evolution Over Time ──
+(function(){
+  const epochs = DATA.weight_epochs || Array.from({length:50},(_,i)=>i);
+  const meanLayers = DATA.weight_mean || null;
+  const stdLayers = DATA.weight_std || null;
+
+  const defaultColors = ['#38bdf8','#818cf8','#34d399','#fbbf24','#f87171','#a78bfa'];
+  const datasets = [];
+
+  if(meanLayers && meanLayers.length){
+    meanLayers.forEach((layer,i)=>{
+      datasets.push({
+        label: 'Mean L'+i,
+        data: layer,
+        borderColor: defaultColors[i%defaultColors.length],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        tension: 0.3,
+        yAxisID: 'y'
+      });
+    });
+  } else {
+    // Generate demo
+    for(let l=0;l<3;l++){
+      const d = epochs.map(e => 0.5 * Math.exp(-e*0.03) + (Math.random()-0.5)*0.05 + l*0.1);
+      datasets.push({ label:'Mean L'+l, data:d, borderColor:defaultColors[l], borderWidth:1.5, pointRadius:0, tension:0.3, yAxisID:'y' });
+    }
+  }
+
+  if(stdLayers && stdLayers.length){
+    stdLayers.forEach((layer,i)=>{
+      datasets.push({
+        label: 'Std L'+i,
+        data: layer,
+        borderColor: defaultColors[i%defaultColors.length],
+        borderWidth: 1,
+        borderDash: [4,4],
+        pointRadius: 0,
+        tension: 0.3,
+        yAxisID: 'y1'
+      });
+    });
+  } else {
+    for(let l=0;l<3;l++){
+      const d = epochs.map(e => 0.1 + e*0.002 + (Math.random()-0.5)*0.02);
+      datasets.push({ label:'Std L'+l, data:d, borderColor:defaultColors[l], borderWidth:1, borderDash:[4,4], pointRadius:0, tension:0.3, yAxisID:'y1' });
+    }
+  }
+
+  new Chart(getCtx('weightEvolutionChart'), {
+    type:'line',
+    data:{ labels:epochs, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#64748b', font:{size:10,family:'monospace'}, boxWidth:12 } } },
+      scales:{
+        x:{ title:{display:true,text:'Epoch',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} },
+        y:{ position:'left', title:{display:true,text:'Mean Weight',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} },
+        y1:{ position:'right', title:{display:true,text:'Std Dev',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{drawOnChartArea:false} }
+      }
+    }
+  });
+})();
+
+// ── 3. Plasticity Event Visualization (Network Canvas) ──
+(function(){
+  const canvas = document.getElementById('networkCanvas');
+  const ctx = canvas.getContext('2d');
+  const wrap = canvas.parentElement;
+  function resize(){ canvas.width = wrap.clientWidth*2; canvas.height = wrap.clientHeight*2; ctx.scale(2,2); }
+  resize();
+
+  const W = wrap.clientWidth, H = wrap.clientHeight - 36;
+  const layers = [4,6,6,3];
+  const nodes = [];
+  const connections = [];
+
+  // Create nodes
+  let xOff = 60;
+  const gap = (W-120) / (layers.length-1);
+  layers.forEach((count,li)=>{
+    for(let n=0;n<count;n++){
+      const y = (H/(count+1))*(n+1);
+      nodes.push({ x:xOff, y, layer:li, change:Math.random() });
+    }
+    xOff += gap;
+  });
+
+  // Create connections
+  let prevStart = 0;
+  for(let li=0;li<layers.length-1;li++){
+    const prevCount = layers[li];
+    const nextCount = layers[li+1];
+    for(let a=0;a<prevCount;a++){
+      for(let b=0;b<nextCount;b++){
+        connections.push({
+          from: prevStart+a,
+          to: prevStart+prevCount+b,
+          change: Math.random(),
+          weight: Math.random()
+        });
+      }
+    }
+    prevStart += prevCount;
+  }
+
+  const slider = document.getElementById('epochSlider');
+  const valLabel = document.getElementById('epochVal');
+  let currentEpoch = 0;
+
+  function draw(){
+    ctx.clearRect(0,0,W,H+36);
+    const maxEpoch = +slider.max || 1;
+    const t = currentEpoch / maxEpoch;
+
+    // Draw connections
+    connections.forEach(c=>{
+      const from = nodes[c.from], to = nodes[c.to];
+      const brightness = clamp(c.change * (0.3 + t*0.7), 0, 1);
+      const alpha = 0.1 + brightness * 0.8;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      if(brightness > 0.6){
+        ctx.strokeStyle = `rgba(56,189,248,${alpha})`;
+      } else {
+        ctx.strokeStyle = `rgba(100,116,139,${alpha*0.5})`;
+      }
+      ctx.lineWidth = 0.5 + brightness * 1.5;
+      ctx.stroke();
+    });
+
+    // Draw nodes
+    nodes.forEach(n=>{
+      const glow = 0.3 + n.change * 0.7;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 4, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(56,189,248,${glow})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 4, 0, Math.PI*2);
+      ctx.strokeStyle = `rgba(56,189,248,0.4)`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    // Layer labels
+    ctx.fillStyle = '#475569'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
+    let xL = 60;
+    layers.forEach((count,i)=>{
+      ctx.fillText('Layer '+i, xL, H+14);
+      xL += gap;
+    });
+  }
+
+  slider.addEventListener('input', function(){
+    currentEpoch = +this.value;
+    valLabel.textContent = currentEpoch;
+    // Shuffle changes each epoch for visual effect
+    nodes.forEach(n => n.change = clamp(n.change + (Math.random()-0.5)*0.1, 0, 1));
+    connections.forEach(c => c.change = clamp(c.change + (Math.random()-0.5)*0.08, 0, 1));
+    draw();
+  });
+
+  draw();
+})();
+
+// ── 4. STDP Timing Diagram ──
+(function(){
+  const canvas = document.getElementById('stdpCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.parentElement.clientWidth - 40;
+  canvas.width = W*2; canvas.height = 260*2;
+  canvas.style.width = W+'px'; canvas.style.height = '260px';
+  ctx.scale(2,2);
+
+  const h = 240, ox = 60, oy = 10;
+  const midY = oy + h/2;
+
+  // Axes
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ox, midY); ctx.lineTo(ox+W-80, midY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox+(W-80)/2, oy); ctx.lineTo(ox+(W-80)/2, oy+h); ctx.stroke();
+
+  // LTP region
+  ctx.fillStyle = 'rgba(52,211,153,0.08)';
+  ctx.fillRect(ox+(W-80)/2+1, oy, (W-80)/2-1, h/2);
+  // LTD region
+  ctx.fillStyle = 'rgba(248,113,113,0.08)';
+  ctx.fillRect(ox+1, midY, (W-80)/2-1, h/2);
+
+  // STDP curve
+  ctx.beginPath();
+  const plotW = W - 80;
+  const plotH = h - 20;
+  for(let px=0; px<=plotW; px++){
+    const dt = (px/plotW - 0.5) * 100; // -50 to +50 ms
+    let dw;
+    if(dt > 0){
+      dw = 0.8 * Math.exp(-dt/20); // LTP
+    } else {
+      dw = -0.6 * Math.exp(dt/20); // LTD
+    }
+    const x = ox + px;
+    const y = midY - dw * (plotH/2);
+    if(px===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#34d399'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('LTP (strengthen)', ox + plotW*0.75, oy+20);
+  ctx.fillStyle = '#f87171';
+  ctx.fillText('LTD (weaken)', ox + plotW*0.25, oy+h-10);
+
+  ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('Δt (ms) — pre→post', ox+plotW/2, oy+h+14);
+  ctx.textAlign = 'right';
+  ctx.fillText('+Δw', ox-8, oy+16);
+  ctx.fillText('0', ox-8, midY+3);
+  ctx.fillText('−Δw', ox-8, oy+h-6);
+
+  // Spike pair illustration
+  const spkY1 = oy + 40, spkY2 = oy + 80;
+  ctx.strokeStyle = '#818cf8'; ctx.lineWidth = 1.5;
+  // Pre spike
+  ctx.beginPath(); ctx.moveTo(ox+plotW*0.45, spkY1+15); ctx.lineTo(ox+plotW*0.45, spkY1-10); ctx.stroke();
+  ctx.fillStyle = '#818cf8'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('pre', ox+plotW*0.45+4, spkY1-4);
+  // Post spike
+  ctx.beginPath(); ctx.moveTo(ox+plotW*0.55, spkY2+15); ctx.lineTo(ox+plotW*0.55, spkY2-10); ctx.stroke();
+  ctx.fillText('post', ox+plotW*0.55+4, spkY2-4);
+
+  // Arrow
+  ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ox+plotW*0.45, spkY1+20); ctx.lineTo(ox+plotW*0.55, spkY2+20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox+plotW*0.55, spkY2+20); ctx.lineTo(ox+plotW*0.55-4, spkY2+16); ctx.stroke();
+})();
+
+// ── 5. Plasticity Statistics ──
+(function(){
+  const stats = DATA.plasticity_stats || {};
+  document.getElementById('statTotalChanges').textContent = (stats.total_changes || 1247).toLocaleString();
+  document.getElementById('statPercentChanged').textContent = (stats.percent_changed || 68.3).toFixed(1) + '%';
+  document.getElementById('statMeanAbs').textContent = (stats.mean_abs_change || 0.0042).toFixed(4);
+  document.getElementById('statMaxChange').textContent = (stats.max_change || 0.312).toFixed(3);
+})();
+</script>
+
+</body>
+</html>

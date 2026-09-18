@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO-NN — Experiments</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0e17;--surface:#111827;--surface2:#1a2236;--border:#1e293b;
+    --text:#e2e8f0;--text-dim:#94a3b8;--accent:#22d3ee;--accent2:#818cf8;
+    --green:#34d399;--red:#f87171;--yellow:#fbbf24;--radius:8px;
+  }
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  .nav{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:50}
+  .nav .logo{font-weight:700;font-size:1.15rem;color:var(--accent)}
+  .nav a{color:var(--text-dim);font-size:.875rem;padding:4px 10px;border-radius:var(--radius)}.nav a:hover,.nav a.active{color:var(--text);background:var(--surface2)}
+  .container{max-width:1280px;margin:0 auto;padding:32px 24px}
+  h1{font-size:1.75rem;margin-bottom:4px}
+  .desc{color:var(--text-dim);margin-bottom:28px;font-size:.925rem;max-width:720px}
+  .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+  .search{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:var(--radius);width:280px;font-size:.875rem}
+  .search:focus{outline:none;border-color:var(--accent)}
+  select.filter{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:var(--radius);font-size:.875rem}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:var(--radius);font-size:.875rem;font-weight:600;border:none;cursor:pointer;transition:background .15s}
+  .btn-primary{background:var(--accent);color:#000}.btn-primary:hover{background:#06b6d4}
+  .btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{background:var(--border)}
+  .table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);font-size:.875rem}
+  th{background:var(--surface);color:var(--text-dim);font-weight:600;cursor:pointer;user-select:none;white-space:nowrap}
+  th:hover{color:var(--text)}
+  th .arrow{margin-left:4px;font-size:.7rem;opacity:.4}
+  th.sorted .arrow{opacity:1;color:var(--accent)}
+  tr.data-row{cursor:pointer;transition:background .1s}
+  tr.data-row:hover{background:var(--surface2)}
+  tr.expanded{background:var(--surface2)}
+  .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600}
+  .badge-completed{background:#34d39920;color:var(--green)}
+  .badge-running{background:#fbbf2420;color:var(--yellow)}
+  .badge-failed{background:#f8717120;color:var(--red)}
+  .detail-row{display:none}
+  .detail-row.open{display:table-row}
+  .detail-cell{padding:0 16px 20px 16px;background:var(--surface);border-bottom:2px solid var(--accent)}
+  .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:12px}
+  .detail-card{background:var(--surface2);padding:16px;border-radius:var(--radius);border:1px solid var(--border)}
+  .detail-card h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);margin-bottom:10px}
+  .kv{display:flex;justify-content:space-between;padding:4px 0;font-size:.85rem;border-bottom:1px solid var(--border)}
+  .kv:last-child{border-bottom:none}
+  .kv span:first-child{color:var(--text-dim)}
+  .actions-cell{display:flex;gap:6px}
+  .icon-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);width:32px;height:32px;border-radius:var(--radius);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .15s}
+  .icon-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .empty{text-align:center;padding:60px 20px;color:var(--text-dim)}
+  .metric-bar{height:6px;border-radius:3px;background:var(--border);margin-top:4px;overflow:hidden}
+  .metric-bar-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .4s}
+  @media(max-width:640px){
+    .toolbar{flex-direction:column;align-items:stretch}
+    .search{width:100%}
+    .detail-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="logo">BIO-NN</span>
+  <a href="/dashboard" class="active">Experiments</a>
+  <a href="/compare">Compare</a>
+  <a href="/robustness">Robustness</a>
+  <a href="/config">Config</a>
+  <a href="/about">About</a>
+</nav>
+
+<div class="container">
+  <h1>Experiments</h1>
+  <p class="desc">Browse all experiment runs. Each experiment has a unique ID, configuration, and results. Click any experiment to view its details or visualize its results.</p>
+
+  <div class="toolbar">
+    <input type="text" class="search" id="search" placeholder="Search experiments...">
+    <select class="filter" id="statusFilter">
+      <option value="">All Statuses</option>
+      <option value="completed">Completed</option>
+      <option value="running">Running</option>
+      <option value="failed">Failed</option>
+    </select>
+    <div style="flex:1"></div>
+    <a href="/config" class="btn btn-primary">+ New Experiment</a>
+  </div>
+
+  <div class="table-wrap">
+    <table id="expTable">
+      <thead>
+        <tr>
+          <th data-col="id">ID <span class="arrow">▲</span></th>
+          <th data-col="name">Name <span class="arrow">▲</span></th>
+          <th data-col="status">Status <span class="arrow">▲</span></th>
+          <th data-col="date">Date <span class="arrow">▲</span></th>
+          <th data-col="accuracy">Accuracy <span class="arrow">▲</span></th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="expBody"></tbody>
+    </table>
+    <div class="empty" id="emptyState" style="display:none">No experiments match your filters.</div>
+  </div>
+</div>
+
+<script>
+const experiments = {{ experiments | tojson }};
+
+const rows = Array.isArray(experiments) ? experiments : Object.entries(experiments).map(([k,v]) => ({id:k,...v}));
+
+let sortCol = 'id', sortAsc = true, openRow = null;
+
+function statusBadge(s){
+  const map = {completed:'badge-completed',running:'badge-running',failed:'badge-failed'};
+  return `<span class="badge ${map[s]||''}">${s||'unknown'}</span>`;
+}
+
+function renderTable(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const sf = document.getElementById('statusFilter').value;
+  let filtered = rows.filter(r => {
+    if(sf && r.status !== sf) return false;
+    if(q && !Object.values(r).some(v => String(v).toLowerCase().includes(q))) return false;
+    return true;
+  });
+  filtered.sort((a,b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if(typeof va === 'number') return sortAsc ? va-vb : vb-va;
+    return sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+  const tbody = document.getElementById('expBody');
+  const empty = document.getElementById('emptyState');
+  if(!filtered.length){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = filtered.map(r => {
+    const acc = r.accuracy != null ? (r.accuracy*100).toFixed(1)+'%' : '—';
+    const isOpen = openRow === r.id;
+    return `
+      <tr class="data-row ${isOpen?'expanded':''}" data-id="${r.id}" onclick="toggleDetail('${r.id}')">
+        <td><code style="color:var(--accent)">${r.id}</code></td>
+        <td>${r.name||r.experiment_name||'—'}</td>
+        <td>${statusBadge(r.status)}</td>
+        <td>${r.date||r.created_at||'—'}</td>
+        <td>
+          <div>${acc}</div>
+          ${r.accuracy!=null?`<div class="metric-bar"><div class="metric-bar-fill" style="width:${r.accuracy*100}%"></div></div>`:''}
+        </td>
+        <td class="actions-cell" onclick="event.stopPropagation()">
+          ${r.id?`<a href="/visualize/${r.id}" class="icon-btn" title="Visualize">📊</a>`:''}
+          <button class="icon-btn" onclick="toggleDetail('${r.id}')" title="Details">🔍</button>
+        </td>
+      </tr>
+      <tr class="detail-row ${isOpen?'open':''}" id="detail-${r.id}">
+        <td colspan="6" class="detail-cell">
+          <div class="detail-grid">
+            <div class="detail-card">
+              <h3>Configuration</h3>
+              ${r.config ? Object.entries(r.config).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${typeof v==='object'?JSON.stringify(v):v}</span></div>`).join('') : '<div class="kv"><span>No config available</span></div>'}
+            </div>
+            <div class="detail-card">
+              <h3>Results Summary</h3>
+              ${r.results ? Object.entries(r.results).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${typeof v==='number'?v.toFixed?v.toFixed(4):v:v}</span></div>`).join('') : '<div class="kv"><span>No results available</span></div>'}
+            </div>
+            <div class="detail-card">
+              <h3>Metrics</h3>
+              ${r.metrics ? Object.entries(r.metrics).map(([k,v])=>`<div class="kv"><span>${k}</span><span>${typeof v==='number'?v.toFixed?v.toFixed(4):v:v}</span></div>`).join('') : (r.accuracy!=null?`<div class="kv"><span>accuracy</span><span>${(r.accuracy*100).toFixed(2)}%</span></div>`:'<div class="kv"><span>No metrics available</span></div>')}
+            </div>
+            <div class="detail-card">
+              <h3>Links</h3>
+              ${r.id?`
+                <div class="kv"><a href="/visualize/${r.id}">📊 Visualize Results</a></div>
+                <div class="kv"><a href="/compare?ids=${r.id}">⚖️ Compare</a></div>
+                <div class="kv"><a href="/robustness?ids=${r.id}">🛡️ Robustness</a></div>
+              `:'<div class="kv"><span>No links available</span></div>'}
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function toggleDetail(id){
+  openRow = openRow === id ? null : id;
+  renderTable();
+}
+
+document.querySelectorAll('th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if(sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+    document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
+    th.classList.add('sorted');
+    th.querySelector('.arrow').textContent = sortAsc ? '▲' : '▼';
+    renderTable();
+  });
+});
+
+document.getElementById('search').addEventListener('input', renderTable);
+document.getElementById('statusFilter').addEventListener('change', renderTable);
+
+renderTable();
+</script>
+</body>
+</html>

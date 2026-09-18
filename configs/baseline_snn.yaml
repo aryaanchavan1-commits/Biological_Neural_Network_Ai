@@ -1,0 +1,56 @@
+experiment:
+  name: "baseline_snn"
+  description: "Basic SNN baseline with LIF neurons"
+  seed: 42
+
+model:
+  type: "snn"
+  neuron:
+    model: "lif"
+    tau_mem: 20.0
+    threshold: 1.0
+    reset_mechanism: "subtract"
+    refractory_period: 0
+  layers:
+    - {type: "input", size: 784}
+    - {type: "hidden", size: 256}
+    - {type: "hidden", size: 128}
+    - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 25
+  max_rate: 100
+
+synapse:
+  type: "static"
+  weight_init:
+    method: "xavier"
+    gain: 1.0
+
+learning:
+  rule: "surrogate_gradient"
+  surrogate:
+    type: "fast_sigmoid"
+    slope: 5.0
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 20
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics: ["accuracy", "balanced_accuracy", "f1", "confusion_matrix"]
+  save_predictions: true
+
+visualization:
+  enabled: true
+  spike_raster: true
+  membrane_potential: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

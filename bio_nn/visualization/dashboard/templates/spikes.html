@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spike Raster — BIO-NN Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+    --border: #2a2a3a; --text: #e0e0ec; --text-dim: #8888a0;
+    --accent: #7c5cfc; --accent2: #00e5a0; --accent3: #ff6b6b;
+    --excite: #ff6b6b; --inhibit: #5c8aff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; overflow-x: hidden; }
+  .header { padding: 20px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; }
+  .header .tag { background: var(--accent); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header .exp-id { color: var(--text-dim); font-size: 12px; margin-left: auto; }
+  .desc { padding: 16px 28px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 12px; line-height: 1.7; max-width: 900px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 28px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .panel-head .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .panel-body { padding: 16px; }
+  .panel-body canvas { width: 100% !important; }
+  .full-width { grid-column: 1 / -1; }
+
+  #three-container { width: 100%; height: 420px; position: relative; background: #08080e; border-radius: 4px; }
+  #three-container canvas { display: block; }
+
+  .controls { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .controls button { background: var(--accent); border: none; color: #fff; padding: 6px 16px; border-radius: 4px; font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: opacity 0.15s; }
+  .controls button:hover { opacity: 0.85; }
+  .controls button.secondary { background: var(--surface2); border: 1px solid var(--border); }
+  .controls label { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .controls input[type="range"] { width: 120px; accent-color: var(--accent); }
+  .controls select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 4px; font-family: inherit; font-size: 11px; }
+  .time-display { font-size: 13px; font-weight: 600; color: var(--accent); min-width: 60px; }
+  .legend { display: flex; gap: 12px; margin-left: auto; }
+  .legend span { font-size: 10px; display: flex; align-items: center; gap: 4px; }
+  .legend .swatch { width: 8px; height: 8px; border-radius: 2px; }
+
+  #raster-container { height: 360px; }
+  #firing-container { height: 300px; }
+
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent)"></div>
+  <h1>Spike Raster Visualization</h1>
+  <span class="tag">Temporal</span>
+  <span class="exp-id">Experiment: {{ exp_id }}</span>
+</div>
+<div class="desc">
+  Spike raster plots show the temporal activity patterns of all neurons in the network. Each dot represents a spike — the position shows which neuron fired at which time step. Spikes propagate through layers, carrying information from input to output.
+</div>
+
+<div class="grid">
+  <!-- 3D Spike Visualization -->
+  <div class="panel full-width">
+    <div class="panel-head"><span class="dot"></span>3D Spike Visualization</div>
+    <div id="three-container"></div>
+    <div class="controls">
+      <button id="btn-play" onclick="togglePlay()">▶ Play</button>
+      <button class="secondary" onclick="resetAnimation()">↺ Reset</button>
+      <label>Speed <input type="range" id="speed-slider" min="1" max="20" value="5"></label>
+      <label>Time <input type="range" id="time-slider" min="0" max="49" value="0" oninput="scrubTime(this.value)"></label>
+      <span class="time-display" id="time-label">t = 0</span>
+      <label>Layer
+        <select id="layer-filter" onchange="filterLayer(this.value)">
+          <option value="all">All Layers</option>
+        </select>
+      </label>
+      <div class="legend" id="layer-legend"></div>
+    </div>
+  </div>
+
+  <!-- Raster Plot -->
+  <div class="panel">
+    <div class="panel-head"><span class="dot"></span>Spike Raster Plot</div>
+    <div class="panel-body"><canvas id="raster-container"></canvas></div>
+  </div>
+
+  <!-- Firing Rate -->
+  <div class="panel">
+    <div class="panel-head"><span class="dot"></span>Firing Rate by Layer</div>
+    <div class="panel-body"><canvas id="firing-container"></canvas></div>
+  </div>
+</div>
+
+<script>
+const DATA = {{ data | tojson }};
+const EXP_ID = {{ exp_id | tojson }};
+
+const LAYER_COLORS = [
+  '#7c5cfc', '#00e5a0', '#ff6b6b', '#5c8aff',
+  '#ffb86c', '#ff79c6', '#8be9fd', '#f1fa8c',
+  '#bd93f9', '#50fa7b', '#ff5555', '#6272a4'
+];
+
+// Parse data
+const layers = DATA.layers || [];
+const neurons = DATA.neurons || DATA.spikes || [];
+const timeSteps = DATA.time_steps || DATA.timesteps || 50;
+const numNeurons = DATA.num_neurons || DATA.neuron_count || neurons.length;
+
+// Build spike data: array of {neuron, time, layer}
+let spikeEvents = [];
+if (Array.isArray(neurons) && neurons.length > 0 && neurons[0].spikes) {
+  neurons.forEach((n, idx) => {
+    (n.spikes || []).forEach(t => {
+      spikeEvents.push({ neuron: idx, time: t, layer: n.layer || n.layer_idx || 0 });
+    });
+  });
+} else if (DATA.spike_events) {
+  spikeEvents = DATA.spike_events;
+}
+const maxTime = timeSteps - 1;
+
+// Layer lookup
+function neuronLayer(i) {
+  if (neurons[i] && neurons[i].layer !== undefined) return neurons[i].layer;
+  if (neurons[i] && neurons[i].layer_idx !== undefined) return neurons[i].layer_idx;
+  return 0;
+}
+
+// Populate layer filter
+const layerSet = [...new Set(spikeEvents.map(s => s.layer))].sort((a,b)=>a-b);
+const layerFilter = document.getElementById('layer-filter');
+layerSet.forEach(l => {
+  const opt = document.createElement('option');
+  opt.value = l; opt.textContent = `Layer ${l}`;
+  layerFilter.appendChild(opt);
+});
+const legendEl = document.getElementById('layer-legend');
+layerSet.forEach(l => {
+  const sp = document.createElement('span');
+  sp.innerHTML = `<span class="swatch" style="background:${LAYER_COLORS[l % LAYER_COLORS.length]}"></span>Layer ${l}`;
+  legendEl.appendChild(sp);
+});
+
+// ========== THREE.JS 3D VISUALIZATION ==========
+const container = document.getElementById('three-container');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 1000);
+camera.position.set(0, 8, 22);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x404060, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 15, 10);
+scene.add(dirLight);
+
+// Grid
+const gridHelper = new THREE.GridHelper(20, 20, 0x1a1a2e, 0x111118);
+scene.add(gridHelper);
+
+// Neuron spheres
+const gridSize = Math.ceil(Math.sqrt(numNeurons));
+const spacing = 18 / gridSize;
+const neuronMeshes = [];
+const glowMeshes = [];
+let activeLayer = 'all';
+
+for (let i = 0; i < numNeurons; i++) {
+  const row = Math.floor(i / gridSize);
+  const col = i % gridSize;
+  const x = (col - gridSize / 2) * spacing;
+  const z = (row - gridSize / 2) * spacing;
+  const layer = neuronLayer(i);
+  const color = new THREE.Color(LAYER_COLORS[layer % LAYER_COLORS.length]);
+
+  const geo = new THREE.SphereGeometry(0.22, 12, 12);
+  const mat = new THREE.MeshPhongMaterial({ color: color, emissive: color, emissiveIntensity: 0.1, transparent: true, opacity: 0.7 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, 0.3, z);
+  mesh.userData = { idx: i, baseEmissive: 0.1 };
+  scene.add(mesh);
+  neuronMeshes.push(mesh);
+
+  const glowGeo = new THREE.SphereGeometry(0.38, 12, 12);
+  const glowMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0 });
+  const glow = new THREE.Mesh(glowGeo, glowMat);
+  glow.position.copy(mesh.position);
+  scene.add(glow);
+  glowMeshes.push(glow);
+}
+
+// Animation state
+let playing = false;
+let currentTime = 0;
+let lastTick = 0;
+let animFrame;
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('btn-play').textContent = playing ? '⏸ Pause' : '▶ Play';
+  if (playing) { lastTick = performance.now(); animate(); }
+}
+
+function resetAnimation() {
+  playing = false;
+  currentTime = 0;
+  document.getElementById('btn-play').textContent = '▶ Play';
+  updateTimeDisplay();
+  updateSpikes();
+}
+
+function scrubTime(t) {
+  currentTime = parseInt(t);
+  updateTimeDisplay();
+  updateSpikes();
+}
+
+function updateTimeDisplay() {
+  document.getElementById('time-label').textContent = `t = ${currentTime}`;
+  document.getElementById('time-slider').value = currentTime;
+}
+
+function filterLayer(v) { activeLayer = v; updateSpikes(); }
+
+function animate() {
+  if (!playing) return;
+  const now = performance.now();
+  const speed = parseInt(document.getElementById('speed-slider').value);
+  if (now - lastTick > 200 / speed) {
+    currentTime++;
+    if (currentTime > maxTime) currentTime = 0;
+    updateTimeDisplay();
+    updateSpikes();
+    lastTick = now;
+  }
+  animFrame = requestAnimationFrame(animate);
+}
+
+function updateSpikes() {
+  const activeSpikes = new Set();
+  spikeEvents.forEach(s => {
+    if (s.time === currentTime) {
+      if (activeLayer === 'all' || parseInt(activeLayer) === s.layer) {
+        activeSpikes.add(s.neuron);
+      }
+    }
+  });
+
+  neuronMeshes.forEach((mesh, i) => {
+    const layer = neuronLayer(i);
+    const vis = activeLayer === 'all' || parseInt(activeLayer) === layer;
+    mesh.visible = vis;
+    glowMeshes[i].visible = vis;
+    if (!vis) return;
+
+    if (activeSpikes.has(i)) {
+      mesh.material.emissiveIntensity = 1.5;
+      mesh.scale.set(1.5, 1.5, 1.5);
+      glowMeshes[i].material.opacity = 0.5;
+      glowMeshes[i].scale.set(1.8, 1.8, 1.8);
+    } else {
+      mesh.material.emissiveIntensity = mesh.userData.baseEmissive;
+      mesh.scale.set(1, 1, 1);
+      glowMeshes[i].material.opacity = 0;
+      glowMeshes[i].scale.set(1, 1, 1);
+    }
+  });
+}
+
+// Render loop
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  const t = performance.now() * 0.0003;
+  camera.position.x = Math.sin(t) * 22;
+  camera.position.z = Math.cos(t) * 22;
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+}
+renderLoop();
+
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+
+// ========== RASTER PLOT ==========
+const rasterCtx = document.getElementById('raster-container').getContext('2d');
+const rasterData = spikeEvents.map(s => ({
+  x: s.time,
+  y: s.neuron,
+  layer: s.layer
+}));
+
+const rasterChart = new Chart(rasterCtx, {
+  type: 'scatter',
+  data: {
+    datasets: layerSet.map(l => ({
+      label: `Layer ${l}`,
+      data: rasterData.filter(d => d.layer === l).map(d => ({ x: d.x, y: d.y })),
+      backgroundColor: LAYER_COLORS[l % LAYER_COLORS.length] + 'cc',
+      pointRadius: 3,
+      pointHoverRadius: 6
+    }))
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, labels: { color: '#8888a0', font: { size: 10, family: 'monospace' } } },
+      tooltip: {
+        callbacks: {
+          label: ctx => `Neuron ${ctx.parsed.y} @ t=${ctx.parsed.x}`
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: 'Time Step', color: '#8888a0' }, grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } },
+      y: { title: { display: true, text: 'Neuron Index', color: '#8888a0' }, grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } }
+    }
+  }
+});
+
+// ========== FIRING RATE BAR ==========
+const firingCtx = document.getElementById('firing-container').getContext('2d');
+const layerFiringRates = layerSet.map(l => {
+  const count = spikeEvents.filter(s => s.layer === l).length;
+  const neuronCount = neurons.filter(n => (n.layer || n.layer_idx || 0) === l).length || 1;
+  return { layer: l, rate: count / (neuronCount * timeSteps) };
+});
+
+const firingChart = new Chart(firingCtx, {
+  type: 'bar',
+  data: {
+    labels: layerFiringRates.map(d => `Layer ${d.layer}`),
+    datasets: [{
+      label: 'Avg Firing Rate',
+      data: layerFiringRates.map(d => d.rate),
+      backgroundColor: layerFiringRates.map(d => LAYER_COLORS[d.layer % LAYER_COLORS.length] + '99'),
+      borderColor: layerFiringRates.map(d => LAYER_COLORS[d.layer % LAYER_COLORS.length]),
+      borderWidth: 1,
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } },
+      y: { title: { display: true, text: 'Firing Rate', color: '#8888a0' }, grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } }
+    }
+  }
+});
+
+// Auto-play after a brief delay
+setTimeout(() => togglePlay(), 800);
+</script>
+</body>
+</html>

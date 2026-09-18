@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: "BIO-NN: Biologically Inspired Neural Network Research Framework"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "Bio-NN Research Team"
+version: 0.1.0
+date-released: "2026-09-19"
+repository-code: "https://github.com/your-repo/bio-nn"
+license: "MIT"

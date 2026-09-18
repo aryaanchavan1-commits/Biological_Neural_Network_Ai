@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO-NN — Compare Experiments</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0e17;--surface:#111827;--surface2:#1a2236;--border:#1e293b;
+    --text:#e2e8f0;--text-dim:#94a3b8;--accent:#22d3ee;--accent2:#818cf8;
+    --green:#34d399;--red:#f87171;--yellow:#fbbf24;--radius:8px;
+  }
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  .nav{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:50}
+  .nav .logo{font-weight:700;font-size:1.15rem;color:var(--accent)}
+  .nav a{color:var(--text-dim);font-size:.875rem;padding:4px 10px;border-radius:var(--radius)}.nav a:hover,.nav a.active{color:var(--text);background:var(--surface2)}
+  .container{max-width:1280px;margin:0 auto;padding:32px 24px}
+  h1{font-size:1.75rem;margin-bottom:4px}
+  h2{font-size:1.15rem;margin:28px 0 14px;color:var(--text)}
+  .desc{color:var(--text-dim);margin-bottom:28px;font-size:.925rem;max-width:720px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+  .selector-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:20px}
+  .exp-check{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;cursor:pointer;transition:border-color .15s}
+  .exp-check:hover{border-color:var(--accent)}
+  .exp-check.selected{border-color:var(--accent);background:rgba(34,211,238,.06)}
+  .exp-check input{accent-color:var(--accent);width:16px;height:16px}
+  .exp-check label{cursor:pointer;font-size:.875rem;flex:1}
+  .exp-check .eid{color:var(--accent);font-size:.75rem;font-family:monospace}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .chart-box h3{font-size:.9rem;color:var(--text-dim);margin-bottom:14px}
+  canvas{width:100%!important;max-height:320px}
+  .comp-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:.85rem}
+  th{background:var(--surface2);color:var(--text-dim);font-weight:600}
+  .best{color:var(--green);font-weight:700}
+  .ablation-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+  .ablation-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+  .ablation-card h4{font-size:.8rem;color:var(--text-dim);margin-bottom:8px}
+  .mech{display:flex;align-items:center;gap:6px;font-size:.8rem;padding:2px 0}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dot-on{background:var(--green)}.dot-off{background:var(--text-dim);opacity:.3}
+  .empty{text-align:center;padding:40px;color:var(--text-dim)}
+  @media(max-width:800px){.charts-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="logo">BIO-NN</span>
+  <a href="/dashboard">Experiments</a>
+  <a href="/compare" class="active">Compare</a>
+  <a href="/robustness">Robustness</a>
+  <a href="/config">Config</a>
+  <a href="/about">About</a>
+</nav>
+
+<div class="container">
+  <h1>Compare Experiments</h1>
+  <p class="desc">Compare multiple experiments side-by-side. Select experiments to overlay their training curves, compare metrics, and identify which biological mechanisms contribute most to performance.</p>
+
+  <div class="card">
+    <h2>Select Experiments</h2>
+    <div class="selector-grid" id="selectorGrid"></div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Metric Comparison</h3>
+      <canvas id="metricChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Training Curves</h3>
+      <canvas id="curveChart"></canvas>
+    </div>
+  </div>
+
+  <h2>Side-by-Side Metrics</h2>
+  <div class="comp-table-wrap">
+    <table id="compTable">
+      <thead><tr id="compHead"></tr></thead>
+      <tbody id="compBody"></tbody>
+    </table>
+  </div>
+
+  <h2>Ablation Summary</h2>
+  <div class="ablation-grid" id="ablationGrid"></div>
+</div>
+
+<script>
+const experiments = {{ experiments | tojson }};
+const rows = Array.isArray(experiments) ? experiments : Object.entries(experiments).map(([k,v]) => ({id:k,...v}));
+
+const COLORS = ['#22d3ee','#818cf8','#34d399','#f87171','#fbbf24','#f472b6','#a78bfa','#fb923c','#2dd4bf','#e879f9'];
+const selected = new Set();
+
+function renderSelector(){
+  const grid = document.getElementById('selectorGrid');
+  grid.innerHTML = rows.map((r,i) => `
+    <div class="exp-check ${selected.has(r.id)?'selected':''}" data-id="${r.id}">
+      <input type="checkbox" id="chk-${r.id}" ${selected.has(r.id)?'checked':''}>
+      <label for="chk-${r.id}">
+        <div>${r.name||r.experiment_name||r.id}</div>
+        <div class="eid">${r.id}</div>
+      </label>
+    </div>
+  `).join('');
+  grid.querySelectorAll('.exp-check').forEach(el => {
+    el.addEventListener('click', e => {
+      if(e.target.tagName==='INPUT') return;
+      const id = el.dataset.id;
+      selected.has(id)?selected.delete(id):selected.add(id);
+      renderSelector();
+      renderAll();
+    });
+    el.querySelector('input').addEventListener('change', e => {
+      const id = el.dataset.id;
+      e.target.checked ? selected.add(id) : selected.delete(id);
+      el.classList.toggle('selected', e.target.checked);
+      renderAll();
+    });
+  });
+}
+
+let metricChart, curveChart;
+
+function getSelected(){ return rows.filter(r => selected.has(r.id)); }
+
+function renderMetricChart(){
+  const sel = getSelected();
+  const labels = sel.map(r => r.name||r.experiment_name||r.id);
+  const metrics = ['accuracy','f1_score','spike_rate','sparsity'];
+  const metricLabels = ['Accuracy','F1 Score','Spike Rate','Sparsity'];
+  const datasets = metricLabels.map((ml,i) => ({
+    label: ml,
+    data: sel.map(r => {
+      const m = r.metrics||r.results||{};
+      return m[metrics[i]]!=null ? m[metrics[i]] : (metrics[i]==='accuracy' && r.accuracy!=null ? r.accuracy : 0);
+    }),
+    backgroundColor: COLORS[i]+'cc',
+    borderColor: COLORS[i],
+    borderWidth:1,
+    borderRadius:4
+  }));
+  if(metricChart) metricChart.destroy();
+  metricChart = new Chart(document.getElementById('metricChart'), {
+    type:'bar',
+    data:{labels,datasets},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},
+      scales:{
+        x:{ticks:{color:'#94a3b8'},grid:{color:'#1e293b'}},
+        y:{ticks:{color:'#94a3b8'},grid:{color:'#1e293b'},beginAtZero:true}
+      }
+    }
+  });
+}
+
+function renderCurveChart(){
+  const sel = getSelected();
+  const allEpochs = sel.flatMap(r => (r.training_history||r.curves||{}).loss||[]).map((_,i)=>i);
+  const maxLen = allEpochs.length ? Math.max(...allEpochs)+1 : 0;
+  const labels = Array.from({length:maxLen},(_,i)=>i+1);
+  const lossSets = sel.map((r,i) => {
+    const hist = r.training_history||r.curves||{};
+    const data = hist.loss||[];
+    return {
+      label:(r.name||r.experiment_name||r.id)+' — Loss',
+      data:data,
+      borderColor:COLORS[i%COLORS.length],
+      backgroundColor:'transparent',
+      borderWidth:2,
+      pointRadius:1,
+      tension:.3,
+      yAxisID:'y'
+    };
+  });
+  const accSets = sel.map((r,i) => {
+    const hist = r.training_history||r.curves||{};
+    const data = hist.accuracy||hist.acc||[];
+    return {
+      label:(r.name||r.experiment_name||r.id)+' — Accuracy',
+      data:data,
+      borderColor:COLORS[i%COLORS.length],
+      backgroundColor:COLORS[i%COLORS.length]+'20',
+      borderWidth:2,
+      borderDash:[5,3],
+      pointRadius:1,
+      tension:.3,
+      yAxisID:'y1'
+    };
+  });
+  if(curveChart) curveChart.destroy();
+  curveChart = new Chart(document.getElementById('curveChart'), {
+    type:'line',
+    data:{labels,datasets:[...lossSets,...accSets]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+      scales:{
+        x:{title:{display:true,text:'Epoch',color:'#94a3b8'},ticks:{color:'#94a3b8'},grid:{color:'#1e293b'}},
+        y:{position:'left',title:{display:true,text:'Loss',color:'#94a3b8'},ticks:{color:'#94a3b8'},grid:{color:'#1e293b'}},
+        y1:{position:'right',title:{display:true,text:'Accuracy',color:'#94a3b8'},ticks:{color:'#94a3b8'},grid:{drawOnChartArea:false},min:0,max:1}
+      }
+    }
+  });
+}
+
+function renderCompTable(){
+  const sel = getSelected();
+  const head = document.getElementById('compHead');
+  const body = document.getElementById('compBody');
+  if(!sel.length){head.innerHTML='';body.innerHTML='<tr><td class="empty" colspan="10">Select experiments to compare.</td></tr>';return;}
+  const metricKeys = ['accuracy','f1_score','loss','spike_rate','sparsity','energy_consumption'];
+  const metricLabels = {accuracy:'Accuracy',f1_score:'F1 Score',loss:'Loss',spike_rate:'Spike Rate',sparsity:'Sparsity',energy_consumption:'Energy'};
+  head.innerHTML = '<th>Metric</th>'+sel.map(r=>`<th>${r.name||r.experiment_name||r.id}</th>`).join('');
+  body.innerHTML = metricKeys.map(mk => {
+    const vals = sel.map(r => {
+      const m = r.metrics||r.results||{};
+      return m[mk]!=null?m[mk]:(mk==='accuracy'&&r.accuracy!=null?r.accuracy:null);
+    });
+    const numVals = vals.filter(v=>v!=null&&typeof v==='number');
+    const best = numVals.length>1 ? (mk==='loss'?Math.min(...numVals):Math.max(...numVals)) : null;
+    return `<tr><td>${metricLabels[mk]||mk}</td>${vals.map(v=>{
+      if(v==null) return '<td>—</td>';
+      const formatted = typeof v==='number'? (v<1&&v>0?(v*100).toFixed(2)+'%':v.toFixed?v.toFixed(4):v) : v;
+      return `<td class="${best!=null&&v===best?'best':''}">${formatted}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+}
+
+function renderAblation(){
+  const sel = getSelected();
+  const grid = document.getElementById('ablationGrid');
+  if(!sel.length){grid.innerHTML='<div class="empty">Select experiments to see ablation summary.</div>';return;}
+  const allMechs = new Set();
+  sel.forEach(r => {
+    const cfg = r.config||{};
+    const bio = cfg.biological_mechanisms||cfg.mechanisms||cfg;
+    if(typeof bio==='object') Object.keys(bio).forEach(k=>allMechs.add(k));
+  });
+  const mechs = [...allMechs].sort();
+  grid.innerHTML = sel.map(r => {
+    const cfg = r.config||{};
+    const bio = cfg.biological_mechanisms||cfg.mechanisms||cfg;
+    return `<div class="ablation-card">
+      <h4>${r.name||r.experiment_name||r.id}</h4>
+      ${mechs.map(m => {
+        const on = bio[m]===true||bio[m]==='enabled'||(typeof bio[m]==='object'&&bio[m]!==null);
+        return `<div class="mech"><span class="dot ${on?'dot-on':'dot-off'}"></span>${m}</div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
+function renderAll(){
+  renderMetricChart();
+  renderCurveChart();
+  renderCompTable();
+  renderAblation();
+}
+
+renderSelector();
+if(rows.length>=2){selected.add(rows[0].id);selected.add(rows[1].id);renderSelector();}
+renderAll();
+</script>
+</body>
+</html>

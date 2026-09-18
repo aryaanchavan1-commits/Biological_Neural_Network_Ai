@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO-NN 3D Visualization Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--card:#1a1a2e;--accent:#16213e;--highlight:#e94560;--secondary:#0f3460;
+  --text:#e0e0e0;--text-muted:#8892b0;--border:#233554;--radius:10px;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+  --glow:0 0 20px rgba(233,69,96,.15);
+  --glow-pulse:0 0 30px rgba(233,69,96,.25);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+a{color:var(--highlight);text-decoration:none;transition:color .2s}
+a:hover{color:#ff6b81}
+
+/* ── scrollbar ── */
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--secondary)}
+
+/* ── nav ── */
+.nav{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 2rem}
+.nav-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:56px}
+.nav-brand{font-weight:700;font-size:1.05rem;color:var(--highlight);letter-spacing:.5px}
+.nav-links{display:flex;gap:1.5rem;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{font-size:.85rem;color:var(--text-muted);white-space:nowrap;padding:6px 0;border-bottom:2px solid transparent;transition:all .2s}
+.nav-links a:hover,.nav-links a.active{color:#fff;border-color:var(--highlight)}
+.nav-toggle{display:none;background:none;border:none;color:var(--text);font-size:1.4rem;cursor:pointer}
+
+/* ── hero ── */
+.hero{position:relative;padding:5rem 2rem 4rem;text-align:center;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(15,52,96,.35) 0%,transparent 70%);pointer-events:none}
+.hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:800;background:linear-gradient(135deg,#fff 0%,var(--highlight) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.5rem;position:relative}
+.hero .subtitle{font-size:clamp(.95rem,2vw,1.15rem);color:var(--text-muted);max-width:700px;margin:0 auto 1.5rem;position:relative}
+.hero .desc{max-width:760px;margin:0 auto;font-size:.95rem;color:var(--text-muted);line-height:1.8;position:relative}
+
+/* ── animated neuron counter ── */
+.hero-counters{display:flex;justify-content:center;gap:3rem;margin-top:2.5rem;position:relative;flex-wrap:wrap}
+.hero-counter{text-align:center}
+.hero-counter .count-num{font-size:2.8rem;font-weight:800;color:var(--highlight);font-variant-numeric:tabular-nums;min-width:3ch;display:inline-block}
+.hero-counter .count-label{font-size:.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.2px;margin-top:.2rem}
+.hero-counter .count-sub{font-size:.68rem;color:var(--secondary);margin-top:.15rem}
+
+/* ── section ── */
+.section{max-width:1400px;margin:0 auto;padding:3rem 2rem}
+.section-title{font-size:1.6rem;font-weight:700;margin-bottom:.4rem}
+.section-sub{color:var(--text-muted);margin-bottom:2rem;font-size:.95rem}
+
+/* ── stats grid ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.6rem 1.4rem;text-align:center;transition:transform .25s,box-shadow .25s,border-color .25s}
+.stat-card:hover{transform:translateY(-4px);box-shadow:var(--glow);border-color:var(--highlight)}
+.stat-card .num{font-size:2.4rem;font-weight:800;color:var(--highlight);display:block}
+.stat-card .label{color:var(--text-muted);font-size:.85rem;margin-top:.3rem}
+
+/* ── explorer grid ── */
+.explorer{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem}
+.exp-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.6rem;transition:transform .25s,box-shadow .25s,border-color .25s;display:flex;flex-direction:column}
+.exp-card:hover{transform:translateY(-4px);box-shadow:var(--glow);border-color:var(--highlight)}
+.exp-card .icon{font-size:2rem;margin-bottom:.6rem}
+.exp-card h3{font-size:1.05rem;font-weight:600;margin-bottom:.4rem}
+.exp-card p{color:var(--text-muted);font-size:.88rem;flex:1;margin-bottom:1rem;line-height:1.6}
+.exp-card .link{font-size:.88rem;font-weight:600;color:var(--highlight);transition:color .2s,letter-spacing .2s}
+.exp-card:hover .link{letter-spacing:.5px}
+
+/* ── architecture ── */
+.arch{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 2rem;overflow-x:auto}
+.arch-diagram{display:flex;align-items:center;gap:.6rem;min-width:max-content;justify-content:center;flex-wrap:wrap;padding:.5rem 0}
+.arch-node{background:var(--accent);border:1px solid var(--border);border-radius:8px;padding:.6rem 1rem;font-size:.82rem;font-weight:600;white-space:nowrap;transition:border-color .2s,transform .2s}
+.arch-node:hover{border-color:var(--highlight);transform:scale(1.05)}
+.arch-node.highlight{border-color:var(--highlight);background:rgba(233,69,96,.12)}
+.arch-arrow{color:var(--highlight);font-size:1.2rem;font-weight:700}
+.arch-loop{border:2px dashed var(--secondary);border-radius:12px;padding:.8rem 1.2rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:center}
+.arch-loop-label{font-size:.7rem;color:var(--text-muted);position:absolute;top:-18px;left:50%;transform:translateX(-50%);white-space:nowrap}
+.arch-loop{position:relative}
+.arch-note{text-align:center;color:var(--text-muted);font-size:.8rem;margin-top:1rem;font-style:italic}
+
+/* ── activity feed ── */
+.feed-wrap{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-top:2rem}
+.feed{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.4rem 1.5rem;max-height:340px;overflow-y:auto}
+.feed h3{font-size:1rem;font-weight:600;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.feed h3::before{content:'';width:8px;height:8px;background:var(--highlight);border-radius:50%;display:inline-block;animation:pulse-dot 2s ease-in-out infinite}
+.feed-item{padding:.55rem 0;border-bottom:1px solid rgba(35,53,84,.4);display:flex;gap:.7rem;align-items:flex-start;font-size:.84rem;line-height:1.5}
+.feed-item:last-child{border-bottom:none}
+.feed-item .feed-time{color:var(--secondary);white-space:nowrap;font-variant-numeric:tabular-nums;min-width:5ch}
+.feed-item .feed-msg{color:var(--text-muted)}
+.feed-item .feed-msg strong{color:var(--text);font-weight:600}
+.feed-item.spike .feed-msg strong{color:var(--highlight)}
+.feed-item.plast .feed-msg strong{color:#4ecdc4}
+.feed-item.struct .feed-msg strong{color:#f7b731}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── architecture pulse ── */
+@keyframes arch-pulse{
+  0%{box-shadow:0 0 0 0 rgba(233,69,96,.35)}
+  70%{box-shadow:0 0 0 12px rgba(233,69,96,0)}
+  100%{box-shadow:0 0 0 0 rgba(233,69,96,0)}
+}
+.arch-node.highlight{animation:arch-pulse 2.2s ease-in-out infinite}
+
+/* ── footer ── */
+.footer{text-align:center;padding:3rem 2rem;color:var(--text-muted);font-size:.82rem;border-top:1px solid var(--border);margin-top:2rem}
+
+/* ── animations ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.fade-up{animation:fadeUp .6s ease-out both}
+.fade-up:nth-child(2){animation-delay:.08s}
+.fade-up:nth-child(3){animation-delay:.16s}
+.fade-up:nth-child(4){animation-delay:.24s}
+
+/* ── responsive ── */
+@media(max-width:900px){
+  .nav-links{display:none;position:absolute;top:56px;left:0;right:0;background:rgba(10,10,15,.97);flex-direction:column;padding:1rem 2rem;gap:.75rem;border-bottom:1px solid var(--border)}
+  .nav-links.open{display:flex}
+  .nav-toggle{display:block}
+  .hero{padding:3.5rem 1.5rem 2.5rem}
+  .hero-counters{gap:1.5rem}
+  .hero-counter .count-num{font-size:2rem}
+  .feed-wrap{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ NAV ═══════════ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">BIO-NN</span>
+    <button class="nav-toggle" aria-label="Toggle navigation" onclick="document.querySelector('.nav-links').classList.toggle('open')">☰</button>
+    <div class="nav-links" id="navLinks">
+      <a href="/" class="active">Home</a>
+      <a href="/network">3D Network</a>
+      <a href="/spikes">Spikes</a>
+      <a href="/neurons">Neurons</a>
+      <a href="/synapses">Synapses</a>
+      <a href="/plasticity">Plasticity</a>
+      <a href="/structure">Structure</a>
+      <a href="/experiments">Experiments</a>
+      <a href="/compare">Compare</a>
+      <a href="/continual">Continual Learning</a>
+      <a href="/robustness">Robustness</a>
+      <a href="/config">Config</a>
+      <a href="/about">About</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero">
+  <h1>BIO-NN 3D Visualization Dashboard</h1>
+  <p class="subtitle">Biologically Inspired Neural Network Research Framework</p>
+  <p class="desc">BIO-NN is a modular research framework for experimenting with biologically-inspired neural network mechanisms. It tests whether synaptic plasticity, structural adaptation, sparse coding, and neuromodulation can improve continual learning, robustness, and computational efficiency.</p>
+  <div class="hero-counters">
+    <div class="hero-counter">
+      <span class="count-num" data-target="128" data-suffix="">0</span>
+      <div class="count-label">Neurons</div>
+      <div class="count-sub">across 4 layers</div>
+    </div>
+    <div class="hero-counter">
+      <span class="count-num" data-target="512" data-suffix="">0</span>
+      <div class="count-label">Synapses</div>
+      <div class="count-sub">dynamic connections</div>
+    </div>
+    <div class="hero-counter">
+      <span class="count-num" data-target="1024" data-suffix="">0</span>
+      <div class="count-label">Time Steps</div>
+      <div class="count-sub">per simulation</div>
+    </div>
+    <div class="hero-counter">
+      <span class="count-num" data-target="47" data-suffix="%">0</span>
+      <div class="count-label">Accuracy</div>
+      <div class="count-sub">current best run</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ STATS ═══════════ -->
+<section class="section">
+  <h2 class="section-title">Quick Overview</h2>
+  <p class="section-sub">Core components of the BIO-NN framework</p>
+  <div class="stats">
+    <div class="stat-card fade-up">
+      <span class="num">3</span>
+      <span class="label">Neuron Models<br><small style="color:var(--text)">LIF · Adaptive LIF · Izhikevich</small></span>
+    </div>
+    <div class="stat-card fade-up">
+      <span class="num">5</span>
+      <span class="label">Plasticity Rules<br><small style="color:var(--text)">Hebbian · STDP · R-STDP · Homeostatic · Metaplasticity</small></span>
+    </div>
+    <div class="stat-card fade-up">
+      <span class="num">4</span>
+      <span class="label">Memory Types<br><small style="color:var(--text)">Recurrent · Working · Associative · Synaptic</small></span>
+    </div>
+    <div class="stat-card fade-up">
+      <span class="num">13</span>
+      <span class="label">Research Areas<br><small style="color:var(--text)">A through M from the spec</small></span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ ACTIVITY FEED ═══════════ -->
+<section class="section">
+  <h2 class="section-title">Live Activity Feed</h2>
+  <p class="section-sub">Recent simulation events and framework status</p>
+  <div class="feed-wrap">
+    <div class="feed" id="feedLeft">
+      <h3>Simulation Events</h3>
+      <div class="feed-item spike"><span class="feed-time">00:12</span><span class="feed-msg"><strong>Layer 2</strong> — 23 neurons spiked (burst mode)</span></div>
+      <div class="feed-item plast"><span class="feed-time">00:11</span><span class="feed-msg"><strong>STDP</strong> — 47 synaptic weights updated</span></div>
+      <div class="feed-item"><span class="feed-time">00:09</span><span class="feed-msg"><strong>Encoder</strong> — MNIST batch #847 loaded (32 samples)</span></div>
+      <div class="feed-item struct"><span class="feed-time">00:07</span><span class="feed-msg"><strong>Pruning</strong> — 12 weak synapses removed (&lt;0.01)</span></div>
+      <div class="feed-item spike"><span class="feed-time">00:05</span><span class="feed-msg"><strong>Layer 1</strong> — sparse activation (18% firing rate)</span></div>
+      <div class="feed-item plast"><span class="feed-time">00:03</span><span class="feed-msg"><strong>Homeostatic</strong> — threshold adjusted for 8 neurons</span></div>
+      <div class="feed-item"><span class="feed-time">00:01</span><span class="feed-msg"><strong>System</strong> — Simulation initialized: LIF × 4 layers</span></div>
+    </div>
+    <div class="feed" id="feedRight">
+      <h3>System Status</h3>
+      <div class="feed-item"><span class="feed-time">now</span><span class="feed-msg"><strong>GPU</strong> — VRAM usage: 2.4 / 8.0 GB</span></div>
+      <div class="feed-item"><span class="feed-time">now</span><span class="feed-msg"><strong>CPU</strong> — 4 cores active, 62% utilization</span></div>
+      <div class="feed-item plast"><span class="feed-time">1m</span><span class="feed-msg"><strong>Accuracy</strong> — Task 1: 94.2% | Task 2: 87.6%</span></div>
+      <div class="feed-item"><span class="feed-time">3m</span><span class="feed-msg"><strong>Memory</strong> — Working buffer: 128 neurons allocated</span></div>
+      <div class="feed-item struct"><span class="feed-time">5m</span><span class="feed-msg"><strong>Structure</strong> — 3 new connections formed</span></div>
+      <div class="feed-item"><span class="feed-time">8m</span><span class="feed-msg"><strong>Config</strong> — Plasticity: STDP + Homeostatic active</span></div>
+      <div class="feed-item spike"><span class="feed-time">12m</span><span class="feed-msg"><strong>Spikes</strong> — Total: 14,207 events recorded</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ EXPLORER ═══════════ -->
+<section class="section">
+  <h2 class="section-title">Component Explorer</h2>
+  <p class="section-sub">Navigate to any visualization module</p>
+  <div class="explorer">
+
+    <a href="/network" class="exp-card fade-up">
+      <span class="icon">🧠</span>
+      <h3>3D Network</h3>
+      <p>Interactive 3D visualization of the neural network architecture. Rotate, zoom, and inspect individual neurons and connections.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/spikes" class="exp-card fade-up">
+      <span class="icon">⚡</span>
+      <h3>Spike Activity</h3>
+      <p>Spike raster plots showing temporal activity patterns across all neurons. Watch information flow through the network.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/neurons" class="exp-card fade-up">
+      <span class="icon">🔬</span>
+      <h3>Neuron Dynamics</h3>
+      <p>Membrane potentials, thresholds, and firing patterns for individual neurons across time steps.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/synapses" class="exp-card fade-up">
+      <span class="icon">🔗</span>
+      <h3>Synapse Weights</h3>
+      <p>Weight heatmaps and distributions showing how connections strengthen and weaken during learning.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/plasticity" class="exp-card fade-up">
+      <span class="icon">🧬</span>
+      <h3>Plasticity</h3>
+      <p>Visualization of STDP, Hebbian, and homeostatic weight changes over training. See which connections adapt.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/structure" class="exp-card fade-up">
+      <span class="icon">🏗️</span>
+      <h3>Structure</h3>
+      <p>Network topology evolution — watch connections grow and prune as the network self-organizes.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/experiments" class="exp-card fade-up">
+      <span class="icon">📊</span>
+      <h3>Experiments</h3>
+      <p>Browse and manage all experiment runs with their configurations and results.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/compare" class="exp-card fade-up">
+      <span class="icon">⚖️</span>
+      <h3>Compare</h3>
+      <p>Side-by-side comparison of multiple experiments and ablation studies.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/continual" class="exp-card fade-up">
+      <span class="icon">🔄</span>
+      <h3>Continual Learning</h3>
+      <p>Per-task accuracy, forgetting curves, and backward/forward transfer across sequential tasks.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+    <a href="/robustness" class="exp-card fade-up">
+      <span class="icon">🛡️</span>
+      <h3>Robustness</h3>
+      <p>Performance under noise, corruption, and distribution shift. Test network resilience.</p>
+      <span class="link">Explore →</span>
+    </a>
+
+  </div>
+</section>
+
+<!-- ═══════════ ARCHITECTURE ═══════════ -->
+<section class="section">
+  <h2 class="section-title">Architecture Overview</h2>
+  <p class="section-sub">Signal flow through the BIO-NN pipeline</p>
+  <div class="arch">
+    <div class="arch-diagram">
+      <div class="arch-node">Input</div>
+      <span class="arch-arrow">→</span>
+      <div class="arch-node">Encoder</div>
+      <span class="arch-arrow">→</span>
+      <div class="arch-loop">
+        <div class="arch-node">Dendrites</div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-node">Synapses</div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-node highlight">Neurons</div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-node">Plasticity</div>
+        <span class="arch-arrow">→</span>
+        <div class="arch-node">Structural</div>
+      </div>
+      <span class="arch-arrow">× N layers</span>
+      <span class="arch-arrow">→</span>
+      <div class="arch-node">Decoder</div>
+      <span class="arch-arrow">→</span>
+      <div class="arch-node">Output</div>
+    </div>
+    <p class="arch-note">Each layer contains a complete processing block with dendritic integration, synaptic transmission, somatic computation, plasticity-driven adaptation, and structural reorganization.</p>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="footer">
+  BIO-NN v0.1.0 — Research Framework for Biologically Inspired Neural Networks
+</footer>
+
+<!-- ═══════════ SCRIPT ═══════════ -->
+<script>
+(function(){
+  // highlight active nav link
+  var path = location.pathname.replace(/\/$/,'') || '/';
+  document.querySelectorAll('.nav-links a').forEach(function(a){
+    var href = a.getAttribute('href').replace(/\/$/,'') || '/';
+    if(href === path) a.classList.add('active');
+    else a.classList.remove('active');
+  });
+
+  // fade-up on scroll
+  if('IntersectionObserver' in window){
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){e.target.style.opacity='1';e.target.style.transform='translateY(0)';obs.unobserve(e.target)}
+      });
+    },{threshold:0.1});
+    document.querySelectorAll('.exp-card,.stat-card,.feed-wrap').forEach(function(el){
+      el.style.opacity='0';el.style.transform='translateY(24px)';el.style.transition='opacity .5s ease,transform .5s ease';
+      obs.observe(el);
+    });
+  }
+
+  // animated neuron counters
+  function animateCounters(){
+    document.querySelectorAll('.hero-counter .count-num').forEach(function(el){
+      var target=parseInt(el.dataset.target,10);
+      var suffix=el.dataset.suffix||'';
+      var duration=1800;
+      var start=null;
+      function step(ts){
+        if(!start)start=ts;
+        var progress=Math.min((ts-start)/duration,1);
+        var eased=1-Math.pow(1-progress,3);
+        var current=Math.floor(eased*target);
+        el.textContent=current.toLocaleString()+suffix;
+        if(progress<1)requestAnimationFrame(step);
+        else el.textContent=target.toLocaleString()+suffix;
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  // trigger counters when hero is visible
+  if('IntersectionObserver' in window){
+    var heroObs=new IntersectionObserver(function(entries){
+      if(entries[0].isIntersecting){animateCounters();heroObs.disconnect()}
+    },{threshold:0.3});
+    var heroEl=document.querySelector('.hero-counters');
+    if(heroEl)heroObs.observe(heroEl);
+  }else{
+    animateCounters();
+  }
+
+  // live feed — add new event periodically
+  var feedMessages=[
+    {cls:'spike',msg:'<strong>Layer 3</strong> — 31 neurons fired (tonic mode)'},
+    {cls:'plast',msg:'<strong>R-STDP</strong> — reward-modulated update: 12 synapses'},
+    {cls:'',msg:'<strong>Decoder</strong> — classification: "7" (confidence: 96.1%)'},
+    {cls:'struct',msg:'<strong>Growth</strong> — 5 new synapses formed (Hebbian rule)'},
+    {cls:'spike',msg:'<strong>Layer 4</strong> — population coding active (42% rate)'},
+    {cls:'plast',msg:'<strong>Metaplasticity</strong> — learning rate decay: 0.001 → 0.00098'},
+    {cls:'',msg:'<strong>Batch</strong> — #848 processed in 12.3ms'},
+    {cls:'spike',msg:'<strong>Inhibition</strong> — lateral inhibition suppressed 8 neurons'},
+    {cls:'plast',msg:'<strong>Homeostatic</strong> — firing rate target: 5Hz, current: 4.7Hz'},
+    {cls:'struct',msg:'<strong>Pruning</strong> — 3 synapses removed (activity-dependent)'},
+  ];
+  var msgIdx=0;
+  function addFeedEvent(){
+    var feed=document.getElementById('feedLeft');
+    if(!feed)return;
+    var now=new Date();
+    var time=String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+    var item=feedMessages[msgIdx%feedMessages.length];
+    msgIdx++;
+    var div=document.createElement('div');
+    div.className='feed-item'+(item.cls?' '+item.cls:'');
+    div.innerHTML='<span class="feed-time">'+time+'</span><span class="feed-msg">'+item.msg+'</span>';
+    div.style.opacity='0';div.style.transform='translateY(-8px)';
+    feed.insertBefore(div,feed.children[1]);
+    requestAnimationFrame(function(){
+      div.style.transition='opacity .3s ease,transform .3s ease';
+      div.style.opacity='1';div.style.transform='translateY(0)';
+    });
+    if(feed.children.length>15)feed.removeChild(feed.lastChild);
+  }
+  setInterval(addFeedEvent,4000);
+})();
+</script>
+</body>
+</html>

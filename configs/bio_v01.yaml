@@ -1,0 +1,127 @@
+experiment:
+  name: "bio_v01"
+  description: "Full BIO-NN with plasticity, structure, and sparse computation"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "adaptive_lif"
+  tau_mem: 20.0
+  tau_adapt: 100.0
+  threshold: 1.0
+  threshold_adapt_rate: 0.01
+  reset_mechanism: "subtract"
+  refractory_period: 0
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 25
+  max_rate: 100
+
+synapse:
+  type: "dynamic"
+  weight_init:
+    method: "xavier"
+    gain: 1.0
+  weight_clip:
+    min: 0.0
+    max: 1.0
+
+plasticity:
+  enabled: true
+  rules:
+    - type: "stdp"
+      learning_rate: 0.01
+      tau_pre: 20.0
+      tau_post: 20.0
+      w_max: 1.0
+      w_min: 0.0
+    - type: "homeostatic"
+      target_rate: 0.05
+      rate_window: 100
+      adaptation_rate: 0.01
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+    criterion: "activity_based"
+    activity_threshold: 0.1
+  pruning:
+    enabled: true
+    rate: 0.005
+    criterion: "weight_based"
+    weight_threshold: 0.01
+
+dendrites:
+  enabled: true
+  branches: 4
+  nonlinearity: "relu"
+  compartment_combination: "multiply"
+
+memory:
+  enabled: false
+  type: "none"
+
+prediction:
+  enabled: false
+
+neuromodulation:
+  enabled: false
+
+topology:
+  type: "sparse"
+  sparsity: 0.5
+  initial_connectivity: 0.5
+
+learning:
+  rule: "surrogate_gradient"
+  surrogate:
+    type: "fast_sigmoid"
+    slope: 5.0
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 20
+
+continual:
+  enabled: false
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "balanced_accuracy"
+    - "f1"
+    - "confusion_matrix"
+    - "spike_count"
+    - "firing_rate"
+    - "sparsity"
+    - "parameter_count"
+  save_predictions: true
+
+visualization:
+  enabled: true
+  spike_raster: true
+  membrane_potential: true
+  weight_heatmap: true
+  firing_rates: true
+  sparsity_over_time: true
+  plasticity_over_time: true
+  structure_over_time: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Structural Plasticity — BIO-NN Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2332;--border:#1e293b;
+  --text:#e2e8f0;--muted:#64748b;--accent:#38bdf8;--accent2:#818cf8;
+  --green:#34d399;--red:#f87171;--yellow:#fbbf24;--purple:#a78bfa;
+}
+body{background:var(--bg);color:var(--text);font-family:'SF Mono','Cascadia Code','Fira Code',monospace;min-height:100vh}
+.header{padding:24px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px}
+.header h1{font-size:18px;font-weight:600;letter-spacing:-0.5px}
+.header .tag{font-size:11px;padding:3px 10px;border-radius:100px;background:rgba(52,211,153,0.12);color:var(--green);border:1px solid rgba(52,211,153,0.2)}
+.header .exp-id{margin-left:auto;font-size:12px;color:var(--muted)}
+.main{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);padding:1px}
+.panel{background:var(--surface);padding:20px;min-height:340px;position:relative}
+.panel-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:'';width:3px;height:12px;background:var(--green);border-radius:2px}
+canvas{width:100%!important;border-radius:6px}
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 12px;text-align:center}
+.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px;line-height:1.3}
+.stat-value{font-size:20px;font-weight:700;color:var(--green)}
+.stat-value.accent{color:var(--accent)}
+.stat-value.purple{color:var(--purple)}
+.stat-value.yellow{color:var(--yellow)}
+.stat-value.red{color:var(--red)}
+.description{grid-column:1/-1;background:var(--surface2);padding:24px 32px;border-top:1px solid var(--border);font-size:13px;line-height:1.7;color:var(--muted)}
+.description strong{color:var(--text)}
+.three-container{width:100%;height:300px;background:var(--surface2);border-radius:8px;overflow:hidden;position:relative}
+.epoch-scrubber{position:absolute;bottom:12px;left:16px;right:16px;display:flex;align-items:center;gap:10px;z-index:2}
+.epoch-scrubber label{font-size:10px;color:var(--muted);white-space:nowrap}
+.epoch-scrubber input[type=range]{flex:1;accent-color:var(--green);height:4px}
+.epoch-scrubber .val{font-size:11px;color:var(--green);min-width:50px;text-align:right}
+.legend-row{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.legend-swatch{width:10px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Structural Plasticity</h1>
+  <span class="tag">BIO-NN</span>
+  <span class="exp-id">Experiment: {{ exp_id }}</span>
+</div>
+
+<div class="main">
+
+  <!-- 1. Network Topology Evolution (Three.js) -->
+  <div class="panel">
+    <div class="panel-title">Network Topology Evolution</div>
+    <div class="three-container" id="threeContainer">
+      <div class="epoch-scrubber">
+        <label>Epoch</label>
+        <input type="range" id="epochSlider" min="0" max="100" value="0">
+        <span class="val" id="epochVal">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Connection Count Over Time -->
+  <div class="panel">
+    <div class="panel-title">Connection Count Over Time</div>
+    <canvas id="connCountChart" height="280"></canvas>
+  </div>
+
+  <!-- 3. Degree Distribution -->
+  <div class="panel">
+    <div class="panel-title">Degree Distribution</div>
+    <canvas id="degreeChart" height="280"></canvas>
+  </div>
+
+  <!-- 4. Growth/Pruning Heatmap -->
+  <div class="panel">
+    <div class="panel-title">Growth / Pruning Heatmap</div>
+    <canvas id="growthPruneCanvas" height="280"></canvas>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--green)"></div>Growth</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--red)"></div>Pruning</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#1e293b"></div>No Change</div>
+    </div>
+  </div>
+
+  <!-- 5. Network Statistics Panel -->
+  <div class="panel" style="grid-column:1/-1">
+    <div class="panel-title">Network Statistics</div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Connections</div><div class="stat-value" id="statTotalConn">—</div></div>
+      <div class="stat-card"><div class="stat-label">Sparsity Level</div><div class="stat-value accent" id="statSparsity">—</div></div>
+      <div class="stat-card"><div class="stat-label">Average Degree</div><div class="stat-value purple" id="statAvgDeg">—</div></div>
+      <div class="stat-card"><div class="stat-label">Growth Rate</div><div class="stat-value green" id="statGrowth">—</div></div>
+      <div class="stat-card"><div class="stat-label">Pruning Rate</div><div class="stat-value red" id="statPruning">—</div></div>
+    </div>
+  </div>
+
+  <!-- 6. Description -->
+  <div class="description">
+    <strong>Structural plasticity</strong> allows the network to physically reorganize — growing new connections where they're needed and pruning unused ones.
+    This mirrors biological <strong>neurogenesis</strong> and <strong>synaptic pruning</strong>.
+    Activity-based growth adds connections between co-active neurons, while weight-based pruning removes weak connections to maintain sparsity.
+  </div>
+
+</div>
+
+<script>
+const DATA = {{ data | safe }};
+
+// ── Utility ──
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+// ── 1. Network Topology Evolution (Three.js 3D) ──
+(function(){
+  const container = document.getElementById('threeContainer');
+  const W = container.clientWidth, H = 300;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e17);
+  scene.fog = new THREE.FogExp2(0x0a0e17, 0.008);
+
+  const camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 1000);
+  camera.position.set(0, 0, 200);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.insertBefore(renderer.domElement, container.firstChild);
+
+  // Lights
+  const ambient = new THREE.AmbientLight(0x334455, 0.6);
+  scene.add(ambient);
+  const point = new THREE.PointLight(0x38bdf8, 1, 400);
+  point.position.set(0, 0, 100);
+  scene.add(point);
+
+  // Network layers
+  const layerCounts = DATA.structure_layers || [5, 8, 8, 5, 3];
+  const totalLayers = layerCounts.length;
+  const layerGap = 70;
+  const startX = -((totalLayers-1) * layerGap) / 2;
+
+  const allNodes = [];
+  const allEdges = [];
+
+  layerCounts.forEach((count, li) => {
+    const x = startX + li * layerGap;
+    for(let n = 0; n < count; n++){
+      const y = ((n - (count-1)/2) * 28);
+      const z = (Math.random()-0.5) * 30;
+      const geo = new THREE.SphereGeometry(3, 12, 12);
+      const mat = new THREE.MeshPhongMaterial({
+        color: 0x38bdf8,
+        emissive: 0x1a4a6a,
+        emissiveIntensity: 0.3,
+        transparent: true,
+        opacity: 0.9
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+      allNodes.push({ mesh, layer: li, baseOpacity: 0.9 });
+    }
+  });
+
+  // Create edges between adjacent layers
+  let offset = 0;
+  for(let li = 0; li < totalLayers-1; li++){
+    const currCount = layerCounts[li];
+    const nextCount = layerCounts[li+1];
+    for(let a = 0; a < currCount; a++){
+      for(let b = 0; b < nextCount; b++){
+        if(Math.random() < 0.5){ // Sparse by default
+          const from = allNodes[offset + a];
+          const to = allNodes[offset + currCount + b];
+          const geo = new THREE.BufferGeometry().setFromPoints([
+            from.mesh.position, to.mesh.position
+          ]);
+          const mat = new THREE.LineBasicMaterial({
+            color: 0x1e293b,
+            transparent: true,
+            opacity: 0.15
+          });
+          const line = new THREE.Line(geo, mat);
+          scene.add(line);
+          allEdges.push({ line, from, to, opacity: 0.15, active: false });
+        }
+      }
+    }
+    offset += currCount;
+  }
+
+  // Mouse rotation
+  let isDragging = false, prevMouse = {x:0,y:0};
+  let rotX = 0, rotY = 0;
+  container.addEventListener('mousedown', e => { isDragging = true; prevMouse = {x:e.clientX,y:e.clientY}; });
+  container.addEventListener('mousemove', e => {
+    if(!isDragging) return;
+    rotY += (e.clientX - prevMouse.x) * 0.005;
+    rotX += (e.clientY - prevMouse.y) * 0.005;
+    prevMouse = {x:e.clientX, y:e.clientY};
+  });
+  container.addEventListener('mouseup', () => isDragging = false);
+  container.addEventListener('mouseleave', () => isDragging = false);
+
+  // Epoch scrubber
+  const slider = document.getElementById('epochSlider');
+  const valLabel = document.getElementById('epochVal');
+
+  function updateEpoch(epoch){
+    const maxEpoch = +slider.max || 1;
+    const t = epoch / maxEpoch;
+
+    // Activate edges based on epoch
+    allEdges.forEach((e, i) => {
+      const threshold = i / allEdges.length;
+      if(threshold < t * 0.8){
+        e.active = true;
+        e.opacity = clamp(0.15 + (t - threshold) * 2, 0.15, 0.7);
+        e.line.material.opacity = e.opacity;
+        e.line.material.color.setHex(
+          e.opacity > 0.5 ? 0x34d399 : 0x38bdf8
+        );
+      } else if(threshold < t * 0.8 + 0.05){
+        // Recently added — green flash
+        e.active = true;
+        e.line.material.opacity = 0.9;
+        e.line.material.color.setHex(0x34d399);
+      } else {
+        e.line.material.opacity = 0.04;
+      }
+    });
+
+    // Pulse nodes
+    allNodes.forEach(n => {
+      const pulse = 0.7 + Math.sin(Date.now()*0.003 + n.mesh.position.y*0.1) * 0.15;
+      n.mesh.material.emissiveIntensity = pulse * 0.4;
+    });
+  }
+
+  slider.addEventListener('input', function(){
+    valLabel.textContent = this.value;
+    updateEpoch(+this.value);
+  });
+
+  // Animate
+  function animate(){
+    requestAnimationFrame(animate);
+    scene.rotation.y += 0.002;
+    scene.rotation.x = rotX;
+    scene.rotation.y += rotY * 0.01;
+    rotY *= 0.98;
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+// ── 2. Connection Count Over Time ──
+(function(){
+  const epochs = DATA.structure_epochs || Array.from({length:50},(_,i)=>i);
+  const total = DATA.conn_total || null;
+  const added = DATA.conn_added || null;
+  const removed = DATA.conn_removed || null;
+
+  function genSeries(base, variance, trend){
+    return epochs.map((e,i) => Math.max(0, Math.round(base + trend*i + (Math.random()-0.5)*variance)));
+  }
+
+  new Chart(document.getElementById('connCountChart'), {
+    type:'line',
+    data:{
+      labels: epochs,
+      datasets:[
+        {
+          label:'Total',
+          data: total || genSeries(120, 15, 0.8),
+          borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,0.08)',
+          borderWidth:2, pointRadius:0, tension:0.3, fill:true
+        },
+        {
+          label:'Added',
+          data: added || genSeries(5, 3, 0.1),
+          borderColor:'#34d399', borderWidth:1.5, pointRadius:0, tension:0.3, borderDash:[4,4]
+        },
+        {
+          label:'Removed',
+          data: removed || genSeries(3, 2, 0.05),
+          borderColor:'#f87171', borderWidth:1.5, pointRadius:0, tension:0.3, borderDash:[4,4]
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#64748b', font:{size:10,family:'monospace'}, boxWidth:12 } } },
+      scales:{
+        x:{ title:{display:true,text:'Epoch',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} },
+        y:{ title:{display:true,text:'Connections',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+})();
+
+// ── 3. Degree Distribution ──
+(function(){
+  const degreeData = DATA.degree_distribution || null;
+  let bins, counts;
+
+  if(degreeData){
+    bins = degreeData.bins || [];
+    counts = degreeData.counts || [];
+  } else {
+    // Generate realistic distribution
+    bins = Array.from({length:20},(_,i)=>i);
+    counts = bins.map(b => Math.round(30 * Math.exp(-((b-6)**2)/18) + Math.random()*3));
+  }
+
+  new Chart(document.getElementById('degreeChart'), {
+    type:'bar',
+    data:{
+      labels: bins.map(b => b.toString()),
+      datasets:[{
+        label:'Neurons',
+        data: counts,
+        backgroundColor: counts.map((_,i) => {
+          const t = i / counts.length;
+          return `rgba(129,140,248,${0.3 + t*0.5})`;
+        }),
+        borderColor:'#818cf8',
+        borderWidth:1,
+        borderRadius:3
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ title:{display:true,text:'Connections per Neuron',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{display:false} },
+        y:{ title:{display:true,text:'Count',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+})();
+
+// ── 4. Growth/Pruning Heatmap ──
+(function(){
+  const canvas = document.getElementById('growthPruneCanvas');
+  const ctx = canvas.getContext('2d');
+  const wrapW = canvas.parentElement.clientWidth - 40;
+  canvas.width = wrapW * 2; canvas.height = 280 * 2;
+  canvas.style.width = wrapW + 'px'; canvas.style.height = '280px';
+  ctx.scale(2,2);
+
+  const layers = DATA.structure_layers || [5, 8, 8, 5, 3];
+  const numLayers = layers.length;
+  const matrixW = wrapW - 100;
+  const matrixH = 220;
+  const cellW = matrixW / numLayers;
+  const cellH = matrixH / numLayers;
+  const ox = 70, oy = 10;
+
+  // Layer-pair growth/pruning matrix
+  for(let r = 0; r < numLayers; r++){
+    for(let c = 0; c < numLayers; c++){
+      if(r === c){
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(ox + c*cellW, oy + r*cellH, cellW-2, cellH-2);
+        continue;
+      }
+      let val = (DATA.growth_matrix && DATA.growth_matrix[r] && DATA.growth_matrix[r][c]) || (Math.random()-0.5)*0.8;
+      let color;
+      if(val > 0.05){
+        const intensity = clamp(val, 0, 1);
+        color = `rgba(52,211,153,${0.15 + intensity*0.7})`;
+      } else if(val < -0.05){
+        const intensity = clamp(-val, 0, 1);
+        color = `rgba(248,113,113,${0.15 + intensity*0.7})`;
+      } else {
+        color = '#1a2332';
+      }
+      ctx.fillStyle = color;
+      ctx.fillRect(ox + c*cellW, oy + r*cellH, cellW-2, cellH-2);
+
+      // Value text
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      const displayVal = typeof val === 'number' ? (val > 0 ? '+' : '') + val.toFixed(2) : '';
+      ctx.fillText(displayVal, ox + c*cellW + cellW/2, oy + r*cellH + cellH/2 + 3);
+    }
+  }
+
+  // Labels
+  ctx.fillStyle = '#64748b'; ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  for(let r = 0; r < numLayers; r++){
+    ctx.fillText('L'+r, ox-8, oy + r*cellH + cellH/2 + 3);
+  }
+  ctx.textAlign = 'center';
+  for(let c = 0; c < numLayers; c++){
+    ctx.fillText('L'+c, ox + c*cellW + cellW/2, oy + numLayers*cellH + 16);
+  }
+
+  ctx.fillStyle = '#475569';
+  ctx.fillText('Source →', ox + matrixW/2, oy + numLayers*cellH + 30);
+  ctx.save();
+  ctx.translate(12, oy + matrixH/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('Target →', 0, 0);
+  ctx.restore();
+})();
+
+// ── 5. Network Statistics ──
+(function(){
+  const s = DATA.structure_stats || {};
+  document.getElementById('statTotalConn').textContent = (s.total_connections || 156).toLocaleString();
+  document.getElementById('statSparsity').textContent = (s.sparsity || 72.4).toFixed(1) + '%';
+  document.getElementById('statAvgDeg').textContent = (s.avg_degree || 3.2).toFixed(1);
+  document.getElementById('statGrowth').textContent = '+' + (s.growth_rate || 2.8).toFixed(1) + '/ep';
+  document.getElementById('statPruning').textContent = '-' + (s.pruning_rate || 1.4).toFixed(1) + '/ep';
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,198 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO-NN — About</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0e17;--surface:#111827;--surface2:#1a2236;--border:#1e293b;
+    --text:#e2e8f0;--text-dim:#94a3b8;--accent:#22d3ee;--accent2:#818cf8;
+    --green:#34d399;--red:#f87171;--yellow:#fbbf24;--radius:8px;
+  }
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  .nav{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:50}
+  .nav .logo{font-weight:700;font-size:1.15rem;color:var(--accent)}
+  .nav a{color:var(--text-dim);font-size:.875rem;padding:4px 10px;border-radius:var(--radius)}.nav a:hover,.nav a.active{color:var(--text);background:var(--surface2)}
+  .container{max-width:900px;margin:0 auto;padding:40px 24px}
+  h1{font-size:2rem;margin-bottom:8px}
+  .subtitle{color:var(--text-dim);font-size:1.05rem;margin-bottom:36px;max-width:640px}
+  h2{font-size:1.25rem;margin:36px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  p{margin-bottom:14px;color:var(--text-dim);font-size:.95rem}
+  .overview{font-size:1.05rem;color:var(--text);line-height:1.7;margin-bottom:32px}
+
+  .research-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:32px}
+  .research-item{display:flex;gap:12px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+  .research-letter{font-size:1.1rem;font-weight:700;color:var(--accent);width:28px;text-align:center;flex-shrink:0}
+  .research-text{font-size:.875rem;color:var(--text-dim)}
+  .research-text strong{color:var(--text);display:block;margin-bottom:2px}
+
+  .levels{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:32px}
+  .level-card{padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);border-left:3px solid var(--accent2)}
+  .level-card .num{font-size:.75rem;font-weight:700;color:var(--accent2);text-transform:uppercase;margin-bottom:4px}
+  .level-card .name{font-weight:600;font-size:.95rem;margin-bottom:4px}
+  .level-card .detail{font-size:.8rem;color:var(--text-dim)}
+
+  .stack{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:32px}
+  .stack-badge{padding:8px 18px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:.875rem;font-weight:500}
+
+  .refs{list-style:none;margin-bottom:32px}
+  .refs li{padding:12px 0;border-bottom:1px solid var(--border);font-size:.9rem}
+  .refs li:last-child{border-bottom:none}
+  .refs .authors{color:var(--text);font-weight:600}
+  .refs .title{color:var(--accent);font-style:italic}
+  .refs .year{color:var(--text-dim);font-size:.8rem}
+
+  .disclaimer{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--yellow);border-radius:var(--radius);padding:20px;margin-top:36px}
+  .disclaimer h3{font-size:.85rem;color:var(--yellow);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+  .disclaimer p{color:var(--text-dim);font-size:.875rem;margin:0}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="logo">BIO-NN</span>
+  <a href="/dashboard">Experiments</a>
+  <a href="/compare">Compare</a>
+  <a href="/robustness">Robustness</a>
+  <a href="/config">Config</a>
+  <a href="/about" class="active">About</a>
+</nav>
+
+<div class="container">
+  <h1>About BIO-NN</h1>
+  <p class="subtitle">A modular research framework for biologically-inspired neural networks.</p>
+
+  <p class="overview">BIO-NN is a modular research framework for investigating whether biologically-inspired neural network mechanisms can improve continual learning, robustness, and computational efficiency. It provides a configurable platform where each biological mechanism can be independently enabled, disabled, and parameterized to measure its contribution to network performance.</p>
+
+  <h2>Research Areas</h2>
+  <div class="research-grid">
+    <div class="research-item">
+      <span class="research-letter">A</span>
+      <div class="research-text"><strong>Biological Neuron Models</strong>Spiking neuron dynamics (Izhikevich, Leaky Integrate-and-Fire) replacing rate-coded units.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">B</span>
+      <div class="research-text"><strong>Neural Coding</strong>Temporal, rate, and population coding schemes for information representation.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">C</span>
+      <div class="research-text"><strong>Synaptic Plasticity</strong>STDP, homeostatic scaling, and other activity-dependent learning rules.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">D</span>
+      <div class="research-text"><strong>Dendritic Computation</strong>Non-linear dendritic processing for local computation and feature binding.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">E</span>
+      <div class="research-text"><strong>Structural Plasticity</strong>Synapse formation, pruning, and network topology adaptation over time.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">F</span>
+      <div class="research-text"><strong>Continual Learning</strong>EWC, progressive networks, and replay mechanisms to prevent catastrophic forgetting.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">G</span>
+      <div class="research-text"><strong>Memory Systems</strong>Hippocampal-inspired episodic and working memory modules.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">H</span>
+      <div class="research-text"><strong>Predictive Processing</strong>Top-down prediction and bottom-up error signal architectures.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">I</span>
+      <div class="research-text"><strong>Neuromodulation</strong>Dopamine and acetylcholine-inspired global learning rate and gating signals.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">J</span>
+      <div class="research-text"><strong>Sparse / Event-Driven Computation</strong>Activation sparsity and event-triggered computation for efficiency.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">K</span>
+      <div class="research-text"><strong>Learning Algorithms</strong>Biologically-motivated optimization beyond standard backpropagation.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">L</span>
+      <div class="research-text"><strong>Robustness</strong>Noise tolerance, out-of-distribution detection, and graceful degradation.</div>
+    </div>
+    <div class="research-item">
+      <span class="research-letter">M</span>
+      <div class="research-text"><strong>Interpretability</strong>Understanding network decisions through biological lens and visualization.</div>
+    </div>
+  </div>
+
+  <h2>Biological Plausibility Levels</h2>
+  <div class="levels">
+    <div class="level-card">
+      <div class="num">Level 0</div>
+      <div class="name">Pure Engineering Abstraction</div>
+      <div class="detail">Standard ANNs with no biological motivation. ReLU activations, dense layers, backpropagation.</div>
+    </div>
+    <div class="level-card">
+      <div class="num">Level 1</div>
+      <div class="name">Loosely Biologically Inspired</div>
+      <div class="detail">Architectures loosely inspired by biology: CNNs (visual cortex), attention (selective attention).</div>
+    </div>
+    <div class="level-card">
+      <div class="num">Level 2</div>
+      <div class="name">Computationally Biologically Motivated</div>
+      <div class="detail">Mechanisms motivated by biological computation but not constrained to match real neurons.</div>
+    </div>
+    <div class="level-card">
+      <div class="num">Level 3</div>
+      <div class="name">Biologically Plausible Approximation</div>
+      <div class="detail">Models that approximate biological constraints while remaining computationally tractable.</div>
+    </div>
+    <div class="level-card">
+      <div class="num">Level 4</div>
+      <div class="name">Closely Constrained by Biological Evidence</div>
+      <div class="detail">Models constrained by measured biological parameters, suitable for neuroscience validation.</div>
+    </div>
+  </div>
+
+  <h2>Software Stack</h2>
+  <div class="stack">
+    <span class="stack-badge">PyTorch</span>
+    <span class="stack-badge">snnTorch</span>
+    <span class="stack-badge">FastAPI</span>
+    <span class="stack-badge">Three.js</span>
+    <span class="stack-badge">Chart.js</span>
+  </div>
+
+  <h2>Key References</h2>
+  <ul class="refs">
+    <li>
+      <span class="authors">Bi, G-Q. &amp; Poo, M-M.</span>
+      <span class="title">Synaptic modifications in cultured hippocampal neurons: dependence on spike timing, synaptic strength, and postsynaptic cell type.</span>
+      <span class="year">Journal of Neuroscience, 1998.</span>
+    </li>
+    <li>
+      <span class="authors">Maass, W.</span>
+      <span class="title">Networks of spiking neurons: The third generation of neural network models.</span>
+      <span class="year">Neural Networks, 1997.</span>
+    </li>
+    <li>
+      <span class="authors">Kirkpatrick, J. et al.</span>
+      <span class="title">Overcoming catastrophic forgetting in neural networks (EWC).</span>
+      <span class="year">Proceedings of the National Academy of Sciences, 2017.</span>
+    </li>
+    <li>
+      <span class="authors">Izhikevich, E. M.</span>
+      <span class="title">Simple model of spiking neurons.</span>
+      <span class="year">IEEE Transactions on Neural Networks, 2003.</span>
+    </li>
+    <li>
+      <span class="authors">Turrigiano, G. G.</span>
+      <span class="title">Homeostatic synaptic plasticity: Local and global mechanisms for stabilizing neuronal function.</span>
+      <span class="year">Cold Spring Harbor Perspectives in Biology, 2012.</span>
+    </li>
+  </ul>
+
+  <div class="disclaimer">
+    <h3>Disclaimer</h3>
+    <p>This is a research framework for computational experimentation. It does not claim to recreate the human brain or create AGI. Biological inspiration is used as a source of architectural ideas, not as a claim of biological realism.</p>
+  </div>
+</div>
+</body>
+</html>

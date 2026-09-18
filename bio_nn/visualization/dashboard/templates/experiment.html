@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ exp_id }} - BIO-NN</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#0a0a0f;color:#e0e0e0;min-height:100vh}
+  a{color:#4a9eff;text-decoration:none}a:hover{text-decoration:underline}
+  .topbar{background:#12121a;border-bottom:1px solid #1e1e2e;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+  .topbar h1{font-size:18px;font-weight:600;color:#fff}
+  .topbar nav{display:flex;gap:20px}
+  .topbar nav a{color:#888;font-size:13px;font-weight:500}.topbar nav a:hover,.topbar nav a.active{color:#fff}
+  .container{max-width:1200px;margin:0 auto;padding:32px}
+  .tabs{display:flex;gap:0;border-bottom:1px solid #1e1e2e;margin-bottom:24px;overflow-x:auto}
+  .tab{padding:12px 20px;cursor:pointer;font-size:13px;font-weight:500;color:#666;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+  .tab:hover{color:#aaa}.tab.active{color:#4a9eff;border-bottom-color:#4a9eff}
+  .panel{display:none}.panel.active{display:block}
+  .card{background:#12121a;border:1px solid #1e1e2e;border-radius:10px;padding:20px;margin-bottom:16px}
+  .card h3{font-size:14px;color:#888;margin-bottom:12px}
+  .card pre{font-size:12px;color:#aaa;white-space:pre-wrap;word-break:break-all;line-height:1.6}
+  .metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+  .metric-box{background:#0e0e14;border:1px solid #1e1e2e;border-radius:8px;padding:16px;text-align:center}
+  .metric-box .val{font-size:24px;font-weight:700;color:#4a9eff}
+  .metric-box .lbl{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+  canvas{max-height:400px}
+  .back{display:inline-block;margin-bottom:16px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1><a href="/" style="color:#fff">BIO-NN</a> &rarr; {{ exp_id }}</h1>
+  <nav>
+    <a href="/compare?ids={{ exp_id }}">Compare</a>
+  </nav>
+</div>
+<div class="container">
+  <a class="back" href="/">&larr; All Experiments</a>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('overview')">Overview</div>
+    <div class="tab" onclick="showTab('spikes')">Spikes</div>
+    <div class="tab" onclick="showTab('neurons')">Neurons</div>
+    <div class="tab" onclick="showTab('synapses')">Synapses</div>
+    <div class="tab" onclick="showTab('plasticity')">Plasticity</div>
+    <div class="tab" onclick="showTab('structure')">Structure</div>
+  </div>
+
+  <!-- Overview -->
+  <div class="panel active" id="panel-overview">
+    <div class="metrics-row">
+      {% for key, val in metadata.get('metrics', {}).items() %}
+      <div class="metric-box"><div class="val">{{ "%.4f"|format(val|float) if val is number else val }}</div><div class="lbl">{{ key }}</div></div>
+      {% endfor %}
+      {% if not metadata.get('metrics') %}
+      <div class="metric-box"><div class="val">-</div><div class="lbl">No metrics</div></div>
+      {% endif %}
+    </div>
+    <div class="card"><h3>Configuration</h3><pre>{{ metadata | tojson(indent=2) }}</pre></div>
+    <div class="card"><h3>Training History</h3><canvas id="chartTrain"></canvas></div>
+  </div>
+
+  <!-- Spikes -->
+  <div class="panel" id="panel-spikes">
+    <div class="card"><h3>Spike Raster</h3><canvas id="chartSpikes"></canvas></div>
+    <div class="card"><h3>Firing Rate Over Time</h3><canvas id="chartFR"></canvas></div>
+  </div>
+
+  <!-- Neurons -->
+  <div class="panel" id="panel-neurons">
+    <div class="card"><h3>Membrane Potentials</h3><canvas id="chartMembrane"></canvas></div>
+  </div>
+
+  <!-- Synapses -->
+  <div class="panel" id="panel-synapses">
+    <div class="card"><h3>Weight Distribution</h3><canvas id="chartWeights"></canvas></div>
+    <div class="card"><h3>Weight Statistics</h3><pre id="weightStats"></pre></div>
+  </div>
+
+  <!-- Plasticity -->
+  <div class="panel" id="panel-plasticity">
+    <div class="card"><h3>Weight Changes Over Time</h3><canvas id="chartPlasticity"></canvas></div>
+  </div>
+
+  <!-- Structure -->
+  <div class="panel" id="panel-structure">
+    <div class="card"><h3>Connectivity Over Time</h3><canvas id="chartConnectivity"></canvas></div>
+  </div>
+</div>
+
+<script>
+const DATA = {{ data | tojson }};
+const COLORS = ['#4a9eff','#ff4a4a','#4aff9f','#ff9f43','#a64aff','#ff4a9f','#4affdf','#ffd94a'];
+
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector(`.tab[onclick*="${name}"]`).classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+}
+
+function chartOpts(xLabel, yLabel){
+  return {responsive:true,maintainAspectRatio:true,scales:{x:{title:{display:!!xLabel,text:xLabel,color:'#888'},ticks:{color:'#888',maxTicksLimit:20},grid:{color:'#1e1e2e'}},y:{title:{display:!!yLabel,text:yLabel,color:'#888'},ticks:{color:'#888'},grid:{color:'#1e1e2e'}}},plugins:{legend:{labels:{color:'#888'}}}};
+}
+
+function initTraining(){
+  const h=DATA.train_history||{};
+  const ctx=document.getElementById('chartTrain');
+  if(!ctx)return;
+  const labels=Array.from({length:(h.train_loss||h.loss||[]).length},(_,i)=>i+1);
+  const ds=[];
+  if(h.train_loss)ds.push({label:'Train Loss',data:h.train_loss,borderColor:'#4a9eff',fill:false,tension:0.3});
+  if(h.val_loss)ds.push({label:'Val Loss',data:h.val_loss,borderColor:'#ff4a4a',borderDash:[5,5],fill:false,tension:0.3});
+  if(h.train_acc)ds.push({label:'Train Acc',data:h.train_acc,borderColor:'#4aff9f',fill:false,tension:0.3});
+  if(h.val_acc)ds.push({label:'Val Acc',data:h.val_acc,borderColor:'#ff9f43',borderDash:[5,5],fill:false,tension:0.3});
+  if(!ds.length)return;
+  new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:chartOpts('Epoch','Value')});
+}
+
+function initSpikes(){
+  const spikes=DATA.spikes;
+  if(!spikes||!spikes.length)return;
+  const arr=Array.isArray(spikes[0])?spikes:[spikes];
+  const ctx=document.getElementById('chartSpikes');
+  if(!ctx)return;
+  const steps=arr.length;
+  const n=arr[0].length;
+  const data=[];
+  for(let t=0;t<steps;t++){
+    for(let ni=0;ni<n;ni++){
+      if(arr[t][ni]>0.5)data.push({x:t,y:ni});
+    }
+  }
+  new Chart(ctx,{type:'scatter',data:{datasets:[{label:'Spikes',data,backgroundColor:'#4a9eff44',pointRadius:1}]},options:{...chartOpts('Time Step','Neuron'),plugins:{legend:{display:false}}}});
+}
+
+function initFR(){
+  const spikes=DATA.spikes;
+  if(!spikes||!spikes.length)return;
+  const arr=Array.isArray(spikes[0])?spikes:[spikes];
+  const rates=arr.map(step=>step.reduce((a,b)=>a+(b>0.5?1:0),0)/step.length);
+  const ctx=document.getElementById('chartFR');
+  if(!ctx)return;
+  new Chart(ctx,{type:'line',data:{labels:Array.from({length:rates.length},(_,i)=>i+1),datasets:[{label:'Firing Rate',data:rates,borderColor:'#4a9eff',backgroundColor:'#4a9eff22',fill:true,tension:0.3}]},options:chartOpts('Time Step','Rate')});
+}
+
+function initMembrane(){
+  const m=DATA.membrane;
+  if(!m||!m.length)return;
+  const arr=Array.isArray(m[0])?m:[m];
+  const ctx=document.getElementById('chartMembrane');
+  if(!ctx)return;
+  const n=Math.min(arr[0].length,10);
+  const ds=[];
+  for(let i=0;i<n;i++)ds.push({label:`Neuron ${i}`,data:arr.map(s=>s[i]),borderColor:COLORS[i%COLORS.length],fill:false,tension:0.3,borderWidth:1});
+  new Chart(ctx,{type:'line',data:{labels:Array.from({length:arr.length},(_,i)=>i+1),datasets:ds},options:chartOpts('Time Step','Potential')});
+}
+
+function initWeights(){
+  const w=DATA.weights;
+  if(!w||!w.length)return;
+  const flat=Array.isArray(w[0])?w.flat():Object.values(w).flat();
+  const ctx=document.getElementById('chartWeights');
+  if(!ctx)return;
+  const bins=50;
+  const mn=Math.min(...flat),mx=Math.max(...flat);
+  const step=(mx-mn)/bins||1;
+  const counts=Array(bins).fill(0);
+  flat.forEach(v=>{const b=Math.min(Math.floor((v-mn)/step),bins-1);counts[b]++});
+  const labels=Array.from({length:bins},(_,i)=>(mn+i*step).toFixed(3));
+  new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Count',data:counts,backgroundColor:'#4a9eff44',borderColor:'#4a9eff',borderWidth:1}]},options:chartOpts('Weight Value','Count')});
+  const stats=document.getElementById('weightStats');
+  if(stats)stats.textContent=`Count: ${flat.length}\nMean: ${(flat.reduce((a,b)=>a+b,0)/flat.length).toFixed(6)}\nStd: ${Math.sqrt(flat.reduce((a,b)=>a+b*b,0)/flat.length-(flat.reduce((a,b)=>a+b,0)/flat.length)**2).toFixed(6)}\nMin: ${mn.toFixed(6)}\nMax: ${mx.toFixed(6)}`;
+}
+
+function initPlasticity(){
+  const wh=DATA.weight_history;
+  if(!wh||!wh.length)return;
+  const ctx=document.getElementById('chartPlasticity');
+  if(!ctx)return;
+  const means=wh.map(w=>{const flat=Array.isArray(w[0])?w.flat():[];return flat.length?flat.reduce((a,b)=>a+b,0)/flat.length:0});
+  const stds=wh.map(w=>{const flat=Array.isArray(w[0])?w.flat():[];if(!flat.length)return 0;const m=flat.reduce((a,b)=>a+b,0)/flat.length;return Math.sqrt(flat.reduce((a,b)=>a+b*b,0)/flat.length-m*m)});
+  new Chart(ctx,{type:'line',data:{labels:Array.from({length:means.length},(_,i)=>i+1),datasets:[{label:'Mean',data:means,borderColor:'#4a9eff',fill:false,tension:0.3},{label:'Std',data:stds,borderColor:'#ff9f43',borderDash:[5,5],fill:false,tension:0.3}]},options:chartOpts('Epoch','Weight Value')});
+}
+
+function initConnectivity(){
+  const c=DATA.connectivity;
+  if(!c||!c.length)return;
+  const ctx=document.getElementById('chartConnectivity');
+  if(!ctx)return;
+  const counts=Array.isArray(c[0])?c.map(w=>w.flat().filter(v=>v>0).length):c;
+  new Chart(ctx,{type:'line',data:{labels:Array.from({length:counts.length},(_,i)=>i+1),datasets:[{label:'Active Connections',data:counts,borderColor:'#4a9eff',backgroundColor:'#4a9eff22',fill:true,tension:0.3}]},options:chartOpts('Epoch','Connections')});
+}
+
+initTraining();initSpikes();initFR();initMembrane();initWeights();initPlasticity();initConnectivity();
+</script>
+</body>
+</html>

@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Synapse Weights — BIO-NN Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25;
+    --border: #2a2a3a; --text: #e0e0ec; --text-dim: #8888a0;
+    --accent: #7c5cfc; --accent2: #00e5a0; --accent3: #ff6b6b;
+    --excite: #ff6b6b; --inhibit: #5c8aff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; overflow-x: hidden; }
+  .header { padding: 20px 28px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.5px; }
+  .header .tag { background: var(--accent3); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .header .exp-id { color: var(--text-dim); font-size: 12px; margin-left: auto; }
+  .desc { padding: 16px 28px; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 12px; line-height: 1.7; max-width: 900px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 20px 28px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .panel-head .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent3); }
+  .panel-body { padding: 16px; }
+  .panel-body canvas { width: 100% !important; }
+  .full-width { grid-column: 1 / -1; }
+
+  #three-container { width: 100%; height: 420px; position: relative; background: #08080e; border-radius: 4px; }
+  #three-container canvas { display: block; }
+
+  .controls { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .controls label { font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .controls input[type="range"] { width: 120px; accent-color: var(--accent3); }
+  .controls select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 4px 8px; border-radius: 4px; font-family: inherit; font-size: 11px; }
+  .controls button { background: var(--accent3); border: none; color: #fff; padding: 6px 16px; border-radius: 4px; font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  #heatmap-container { height: 380px; position: relative; }
+  #heatmap-canvas { width: 100%; height: 100%; cursor: crosshair; }
+  #heatmap-tooltip { position: absolute; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; font-size: 11px; pointer-events: none; display: none; z-index: 10; }
+
+  #hist-container { height: 300px; }
+  #layer-stats-container { height: 300px; }
+
+  .stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+  .stat-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 6px 12px; font-size: 11px; }
+  .stat-chip .label { color: var(--text-dim); }
+  .stat-chip .value { font-weight: 600; margin-left: 4px; }
+
+  .weight-info { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 14px; font-size: 12px; }
+  .weight-info h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--accent3); }
+  .weight-info .row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1a1a25; }
+  .weight-info .row:last-child { border-bottom: none; }
+  .weight-info .lbl { color: var(--text-dim); }
+  .weight-info .val { font-weight: 600; }
+
+  .color-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 10px; color: var(--text-dim); }
+  .color-bar .gradient { width: 200px; height: 12px; border-radius: 3px; background: linear-gradient(to right, #5c8aff, #1a1a2e, #ff6b6b); }
+
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent3)"></div>
+  <h1>Synapse Weights</h1>
+  <span class="tag">Plasticity</span>
+  <span class="exp-id">Experiment: {{ exp_id }}</span>
+</div>
+<div class="desc">
+  Synaptic weights determine the strength of connections between neurons. During learning, these weights are modified by plasticity rules (STDP, Hebbian, etc.). The heatmap shows the weight matrix between layers — red connections are excitatory (positive weights), blue connections are inhibitory (negative weights).
+</div>
+
+<div class="grid">
+  <!-- 3D Weight Visualization -->
+  <div class="panel full-width">
+    <div class="panel-head"><span class="dot"></span>3D Weight Visualization</div>
+    <div id="three-container"></div>
+    <div class="controls">
+      <label>Weight Threshold
+        <input type="range" id="weight-threshold" min="0" max="100" value="10" oninput="updateThreshold(this.value)">
+      </label>
+      <span id="threshold-val" style="font-size:11px;color:var(--text-dim);">≥ 0.10</span>
+      <label>Layer Pair
+        <select id="layer-pair" onchange="filterLayerPair(this.value)">
+          <option value="all">All Connections</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="panel">
+    <div class="panel-head"><span class="dot"></span>Weight Heatmap</div>
+    <div class="panel-body" id="heatmap-container">
+      <canvas id="heatmap-canvas"></canvas>
+      <div id="heatmap-tooltip"></div>
+      <div class="color-bar">
+        <span>Inhibitory (-)</span>
+        <div class="gradient"></div>
+        <span>Excitatory (+)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weight Distribution -->
+  <div class="panel">
+    <div class="panel-head"><span class="dot"></span>Weight Distribution</div>
+    <div class="panel-body">
+      <canvas id="hist-container"></canvas>
+      <div class="stats-row" id="weight-stats"></div>
+    </div>
+  </div>
+
+  <!-- Layer-wise Stats -->
+  <div class="panel full-width">
+    <div class="panel-head"><span class="dot"></span>Layer-wise Weight Statistics</div>
+    <div class="panel-body"><canvas id="layer-stats-container"></canvas></div>
+  </div>
+
+  <!-- Selected Connection Info -->
+  <div class="panel full-width">
+    <div class="panel-head"><span class="dot"></span>Connection Inspector</div>
+    <div class="panel-body">
+      <div class="weight-info" id="connection-info">
+        <h3>Select a connection</h3>
+        <p style="color:var(--text-dim);font-size:12px;">Click a connection line in the 3D view or hover on the heatmap to inspect weights.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = {{ data | tojson }};
+const EXP_ID = {{ exp_id | tojson }};
+
+const LAYER_COLORS = [
+  '#7c5cfc', '#00e5a0', '#ff6b6b', '#5c8aff',
+  '#ffb86c', '#ff79c6', '#8be9fd', '#f1fa8c',
+  '#bd93f9', '#50fa7b', '#ff5555', '#6272a4'
+];
+
+const neurons = DATA.neurons || [];
+const synapses = DATA.synapses || DATA.connections || DATA.weights || [];
+const timeSteps = DATA.time_steps || DATA.timesteps || 50;
+const numNeurons = neurons.length || DATA.num_neurons || 64;
+const numLayers = DATA.num_layers || DATA.layers || 4;
+
+// Build weight array
+let weights = [];
+if (synapses.length > 0) {
+  weights = synapses.map(s => ({
+    from: s.from !== undefined ? s.from : s.source !== undefined ? s.source : s.pre,
+    to: s.to !== undefined ? s.to : s.target !== undefined ? s.target : s.post,
+    weight: s.weight !== undefined ? s.weight : s.strength || 0
+  }));
+} else if (DATA.weight_matrix) {
+  const wm = DATA.weight_matrix;
+  wm.forEach((row, i) => row.forEach((w, j) => {
+    if (w !== 0) weights.push({ from: i, to: j, weight: w });
+  }));
+}
+
+function neuronLayer(i) { return neurons[i] ? (neurons[i].layer !== undefined ? neurons[i].layer : neurons[i].layer_idx || 0) : Math.floor(i / Math.ceil(numNeurons / numLayers)); }
+
+// Compute stats
+const allWeights = weights.map(w => w.weight);
+const wMean = allWeights.length ? allWeights.reduce((a,b)=>a+b,0)/allWeights.length : 0;
+const wStd = allWeights.length > 1 ? Math.sqrt(allWeights.reduce((s,v)=>s+(v-wMean)**2,0)/allWeights.length) : 0;
+const wMin = allWeights.length ? Math.min(...allWeights) : 0;
+const wMax = allWeights.length ? Math.max(...allWeights) : 0;
+const wNearZero = allWeights.length ? (allWeights.filter(w => Math.abs(w) < 0.01).length / allWeights.length * 100) : 0;
+
+// Layer pairs
+const layerPairs = [...new Set(weights.map(w => `${neuronLayer(w.from)}→${neuronLayer(w.to)}`))].sort();
+const lpSelect = document.getElementById('layer-pair');
+layerPairs.forEach(lp => {
+  const opt = document.createElement('option');
+  opt.value = lp; opt.textContent = lp;
+  lpSelect.appendChild(opt);
+});
+
+// ========== THREE.JS ==========
+const container = document.getElementById('three-container');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 1000);
+camera.position.set(0, 10, 26);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x404060, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 15, 10);
+scene.add(dirLight);
+
+const gridSize = Math.ceil(Math.sqrt(numNeurons));
+const spacing = 22 / gridSize;
+const neuronMeshes = [];
+const connectionGroup = new THREE.Group();
+scene.add(connectionGroup);
+
+// Layer columns for better layout
+const layerSpacing = 4;
+const layerOffsets = {};
+for (let l = 0; l < numLayers; l++) layerOffsets[l] = (l - (numLayers-1)/2) * layerSpacing;
+
+for (let i = 0; i < numNeurons; i++) {
+  const layer = neuronLayer(i);
+  const neuronsInLayer = neurons.filter((n,j) => neuronLayer(j) === layer).length || Math.ceil(numNeurons / numLayers);
+  const posInLayer = neurons.filter((n,j) => neuronLayer(j) === layer && j < i).length;
+  const angle = (posInLayer / neuronsInLayer) * Math.PI * 2;
+  const radius = 2 + neuronsInLayer * 0.15;
+  const x = layerOffsets[layer] || 0;
+  const y = Math.sin(angle) * radius;
+  const z = Math.cos(angle) * radius;
+
+  const color = new THREE.Color(LAYER_COLORS[layer % LAYER_COLORS.length]);
+  const geo = new THREE.SphereGeometry(0.22, 12, 12);
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.15 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.userData = { idx: i, layer };
+  scene.add(mesh);
+  neuronMeshes.push(mesh);
+}
+
+let currentThreshold = 0.1;
+let currentPair = 'all';
+
+function drawConnections3D() {
+  while (connectionGroup.children.length) connectionGroup.remove(connectionGroup.children[0]);
+
+  weights.forEach(w => {
+    if (Math.abs(w.weight) < currentThreshold) return;
+    if (currentPair !== 'all') {
+      const pair = `${neuronLayer(w.from)}→${neuronLayer(w.to)}`;
+      if (pair !== currentPair) return;
+    }
+
+    const startMesh = neuronMeshes[w.from];
+    const endMesh = neuronMeshes[w.to];
+    if (!startMesh || !endMesh) return;
+
+    const points = [startMesh.position.clone(), endMesh.position.clone()];
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const color = w.weight >= 0 ? new THREE.Color(0xff6b6b) : new THREE.Color(0x5c8aff);
+    const opacity = Math.min(0.8, 0.2 + Math.abs(w.weight) * 0.6);
+    const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    const line = new THREE.Line(geo, mat);
+    line.userData = { from: w.from, to: w.to, weight: w.weight };
+    connectionGroup.add(line);
+  });
+}
+
+drawConnections3D();
+
+function updateThreshold(v) {
+  currentThreshold = v / 100;
+  document.getElementById('threshold-val').textContent = `≥ ${currentThreshold.toFixed(2)}`;
+  drawConnections3D();
+}
+
+function filterLayerPair(v) {
+  currentPair = v;
+  drawConnections3D();
+}
+
+// Click to inspect connection
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+container.addEventListener('click', e => {
+  const rect = container.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(connectionGroup.children);
+  if (hits.length > 0) {
+    const d = hits[0].object.userData;
+    if (d.from !== undefined) showConnectionInfo(d.from, d.to, d.weight);
+  }
+});
+
+function showConnectionInfo(from, to, weight) {
+  document.getElementById('connection-info').innerHTML = `
+    <h3>Connection ${from} → ${to}</h3>
+    <div class="row"><span class="lbl">Source Neuron</span><span class="val">${from} (Layer ${neuronLayer(from)})</span></div>
+    <div class="row"><span class="lbl">Target Neuron</span><span class="val">${to} (Layer ${neuronLayer(to)})</span></div>
+    <div class="row"><span class="lbl">Weight</span><span class="val" style="color:${weight >= 0 ? '#ff6b6b' : '#5c8aff'}">${weight.toFixed(4)}</span></div>
+    <div class="row"><span class="lbl">Type</span><span class="val">${weight >= 0 ? 'Excitatory' : 'Inhibitory'}</span></div>
+    <div class="row"><span class="lbl">Magnitude</span><span class="val">${Math.abs(weight).toFixed(4)}</span></div>
+  `;
+}
+
+// ========== HEATMAP ==========
+const heatCanvas = document.getElementById('heatmap-canvas');
+const heatCtx = heatCanvas.getContext('2d');
+const heatTooltip = document.getElementById('heatmap-tooltip');
+
+function drawHeatmap() {
+  const containerEl = document.getElementById('heatmap-container');
+  const w = containerEl.clientWidth - 32;
+  const h = containerEl.clientHeight - 60;
+  heatCanvas.width = w * (window.devicePixelRatio || 1);
+  heatCanvas.height = h * (window.devicePixelRatio || 1);
+  heatCanvas.style.width = w + 'px';
+  heatCanvas.style.height = h + 'px';
+  heatCtx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+
+  // Build weight matrix between layers
+  const matrix = [];
+  const maxAbs = wMax !== 0 ? Math.max(Math.abs(wMin), Math.abs(wMax)) : 1;
+  for (let i = 0; i < numLayers; i++) {
+    matrix[i] = [];
+    for (let j = 0; j < numLayers; j++) {
+      const pairWeights = weights.filter(w => neuronLayer(w.from) === i && neuronLayer(w.to) === j);
+      matrix[i][j] = pairWeights.length ? pairWeights.reduce((s,w) => s + w.weight, 0) / pairWeights.length : 0;
+    }
+  }
+
+  const cellW = w / numLayers;
+  const cellH = h / numLayers;
+  const padding = 40;
+
+  heatCtx.clearRect(0, 0, w, h);
+
+  // Draw cells
+  for (let i = 0; i < numLayers; i++) {
+    for (let j = 0; j < numLayers; j++) {
+      const v = matrix[i][j];
+      const norm = v / maxAbs;
+      let r, g, b;
+      if (norm > 0) {
+        r = Math.floor(255 * Math.min(1, norm));
+        g = Math.floor(107 * Math.min(1, norm));
+        b = Math.floor(107 * Math.min(1, norm));
+      } else {
+        r = Math.floor(92 * Math.min(1, -norm));
+        g = Math.floor(138 * Math.min(1, -norm));
+        b = Math.floor(255 * Math.min(1, -norm));
+      }
+      const cellX = padding + j * ((w - padding) / numLayers);
+      const cellY = padding + i * ((h - padding) / numLayers);
+      const cw = (w - padding) / numLayers - 2;
+      const ch = (h - padding) / numLayers - 2;
+
+      heatCtx.fillStyle = `rgb(${r},${g},${b})`;
+      heatCtx.fillRect(cellX, cellY, cw, ch);
+      heatCtx.strokeStyle = '#2a2a3a';
+      heatCtx.strokeRect(cellX, cellY, cw, ch);
+
+      // Value text
+      heatCtx.fillStyle = Math.abs(norm) > 0.5 ? '#fff' : '#8888a0';
+      heatCtx.font = '10px monospace';
+      heatCtx.textAlign = 'center';
+      heatCtx.fillText(v.toFixed(2), cellX + cw/2, cellY + ch/2 + 3);
+    }
+  }
+
+  // Axis labels
+  heatCtx.fillStyle = '#8888a0';
+  heatCtx.font = '11px monospace';
+  heatCtx.textAlign = 'center';
+  for (let i = 0; i < numLayers; i++) {
+    const cellX = padding + i * ((w - padding) / numLayers);
+    const cw = (w - padding) / numLayers;
+    heatCtx.fillText(`L${i}`, cellX + cw/2, padding - 8);
+    const cellY = padding + i * ((h - padding) / numLayers);
+    const ch = (h - padding) / numLayers;
+    heatCtx.textAlign = 'right';
+    heatCtx.fillText(`L${i}`, padding - 8, cellY + ch/2 + 3);
+    heatCtx.textAlign = 'center';
+  }
+
+  // Hover
+  heatCanvas.onmousemove = e => {
+    const rect = heatCanvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const col = Math.floor((mx - padding) / ((w - padding) / numLayers));
+    const row = Math.floor((my - padding) / ((h - padding) / numLayers));
+    if (col >= 0 && col < numLayers && row >= 0 && row < numLayers) {
+      heatTooltip.style.display = 'block';
+      heatTooltip.style.left = (mx + 12) + 'px';
+      heatTooltip.style.top = (my - 10) + 'px';
+      heatTooltip.textContent = `L${row} → L${col}: ${matrix[row][col].toFixed(4)}`;
+    } else {
+      heatTooltip.style.display = 'none';
+    }
+  };
+  heatCanvas.onmouseleave = () => { heatTooltip.style.display = 'none'; };
+}
+
+setTimeout(drawHeatmap, 100);
+window.addEventListener('resize', () => setTimeout(drawHeatmap, 200));
+
+// ========== WEIGHT DISTRIBUTION ==========
+const histCtx = document.getElementById('hist-container').getContext('2d');
+const bins = 30;
+const binMin = wMin;
+const binMax = wMax;
+const binWidth = (binMax - binMin) / bins || 1;
+const binCounts = Array(bins).fill(0);
+allWeights.forEach(w => {
+  const idx = Math.min(bins - 1, Math.floor((w - binMin) / binWidth));
+  binCounts[idx]++;
+});
+const binLabels = Array.from({length: bins}, (_, i) => (binMin + i * binWidth).toFixed(2));
+
+const histChart = new Chart(histCtx, {
+  type: 'bar',
+  data: {
+    labels: binLabels,
+    datasets: [{
+      label: 'Count',
+      data: binCounts,
+      backgroundColor: binCounts.map((_, i) => {
+        const v = binMin + i * binWidth;
+        return v >= 0 ? '#ff6b6b99' : '#5c8aff99';
+      }),
+      borderColor: binCounts.map((_, i) => {
+        const v = binMin + i * binWidth;
+        return v >= 0 ? '#ff6b6b' : '#5c8aff';
+      }),
+      borderWidth: 1, borderRadius: 2
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display: true, text: 'Weight Value', color: '#8888a0' }, grid: { color: '#1a1a25' }, ticks: { color: '#8888a0', maxTicksLimit: 10 } },
+      y: { title: { display: true, text: 'Count', color: '#8888a0' }, grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } }
+    }
+  }
+});
+
+document.getElementById('weight-stats').innerHTML = `
+  <div class="stat-chip"><span class="label">Mean:</span><span class="value">${wMean.toFixed(4)}</span></div>
+  <div class="stat-chip"><span class="label">Std:</span><span class="value">${wStd.toFixed(4)}</span></div>
+  <div class="stat-chip"><span class="label">Min:</span><span class="value">${wMin.toFixed(4)}</span></div>
+  <div class="stat-chip"><span class="label">Max:</span><span class="value">${wMax.toFixed(4)}</span></div>
+  <div class="stat-chip"><span class="label">Near Zero:</span><span class="value">${wNearZero.toFixed(1)}%</span></div>
+  <div class="stat-chip"><span class="label">Total:</span><span class="value">${allWeights.length}</span></div>
+`;
+
+// ========== LAYER-WISE STATS ==========
+const layerStatsCtx = document.getElementById('layer-stats-container').getContext('2d');
+const layerStatsData = {};
+layerPairs.forEach(lp => {
+  const pairWeights = weights.filter(w => `${neuronLayer(w.from)}→${neuronLayer(w.to)}` === lp).map(w => w.weight);
+  const mean = pairWeights.length ? pairWeights.reduce((a,b)=>a+b,0)/pairWeights.length : 0;
+  const std = pairWeights.length > 1 ? Math.sqrt(pairWeights.reduce((s,v)=>s+(v-mean)**2,0)/pairWeights.length) : 0;
+  layerStatsData[lp] = { mean, std };
+});
+
+const layerStatsChart = new Chart(layerStatsCtx, {
+  type: 'bar',
+  data: {
+    labels: layerPairs,
+    datasets: [
+      {
+        label: 'Mean Weight',
+        data: layerPairs.map(lp => layerStatsData[lp].mean),
+        backgroundColor: layerPairs.map(lp => layerStatsData[lp].mean >= 0 ? '#ff6b6b88' : '#5c8aff88'),
+        borderColor: layerPairs.map(lp => layerStatsData[lp].mean >= 0 ? '#ff6b6b' : '#5c8aff'),
+        borderWidth: 1, borderRadius: 4
+      },
+      {
+        label: 'Std Dev',
+        data: layerPairs.map(lp => layerStatsData[lp].std),
+        backgroundColor: '#7c5cfc55',
+        borderColor: '#7c5cfc',
+        borderWidth: 1, borderRadius: 4
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#8888a0', font: { size: 10, family: 'monospace' } } }
+    },
+    scales: {
+      x: { grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } },
+      y: { title: { display: true, text: 'Weight', color: '#8888a0' }, grid: { color: '#1a1a25' }, ticks: { color: '#8888a0' } }
+    }
+  }
+});
+
+// Render loop
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  const t = performance.now() * 0.0002;
+  camera.position.x = Math.sin(t) * 26;
+  camera.position.z = Math.cos(t) * 26;
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
+}
+renderLoop();
+
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+</script>
+</body>
+</html>

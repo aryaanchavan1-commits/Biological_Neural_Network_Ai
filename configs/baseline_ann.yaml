@@ -1,0 +1,35 @@
+experiment:
+  name: "baseline_ann"
+  description: "Standard MLP baseline for comparison"
+  seed: 42
+
+model:
+  type: "ann"
+  architecture: "mlp"
+  layers:
+    - {type: "input", size: 784}
+    - {type: "hidden", size: 256, activation: "relu"}
+    - {type: "hidden", size: 128, activation: "relu"}
+    - {type: "output", size: 10}
+
+training:
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 20
+  loss: "cross_entropy"
+
+dataset:
+  name: "mnist"
+  root: "./data"
+  train_split: 0.8
+  test_split: 0.2
+
+evaluation:
+  metrics: ["accuracy", "balanced_accuracy", "f1", "confusion_matrix"]
+  save_predictions: true
+
+visualization:
+  enabled: true
+  save_plots: true
+  plot_dir: "./experiments/plots"

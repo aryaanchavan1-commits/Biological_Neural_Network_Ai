@@ -1,0 +1,66 @@
+experiment:
+  name: "bio_structural"
+  description: "BIO-NN with structural plasticity only (no synaptic plasticity)"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "lif"
+  tau_mem: 20.0
+  threshold: 1.0
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 25
+
+plasticity:
+  enabled: false
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+    criterion: "activity_based"
+  pruning:
+    enabled: true
+    rate: 0.005
+    criterion: "weight_based"
+
+dendrites:
+  enabled: false
+
+memory:
+  enabled: false
+
+prediction:
+  enabled: false
+
+neuromodulation:
+  enabled: false
+
+topology:
+  type: "sparse"
+  sparsity: 0.5
+
+learning:
+  rule: "surrogate_gradient"
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 20
+
+dataset:
+  name: "mnist"
+  root: "./data"
+
+evaluation:
+  metrics: ["accuracy", "spike_count", "firing_rate", "connectivity_changes"]

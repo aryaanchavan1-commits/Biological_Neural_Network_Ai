@@ -1,0 +1,99 @@
+experiment:
+  name: "bio_continual"
+  description: "BIO-NN on continual learning benchmark"
+  seed: 42
+
+model:
+  type: "bio_nn"
+
+neuron:
+  model: "adaptive_lif"
+  tau_mem: 20.0
+  tau_adapt: 100.0
+  threshold: 1.0
+
+layers:
+  - {type: "input", size: 784}
+  - {type: "hidden", size: 256}
+  - {type: "hidden", size: 128}
+  - {type: "output", size: 10}
+
+encoding:
+  type: "rate"
+  time_steps: 25
+
+plasticity:
+  enabled: true
+  rules:
+    - type: "stdp"
+      learning_rate: 0.01
+    - type: "homeostatic"
+      target_rate: 0.05
+
+structural:
+  enabled: true
+  growth:
+    enabled: true
+    rate: 0.01
+  pruning:
+    enabled: true
+    rate: 0.005
+
+dendrites:
+  enabled: true
+  branches: 4
+
+memory:
+  enabled: true
+  type: "recurrent"
+  hidden_size: 128
+
+prediction:
+  enabled: false
+
+neuromodulation:
+  enabled: false
+
+topology:
+  type: "sparse"
+  sparsity: 0.5
+
+learning:
+  rule: "surrogate_gradient"
+  optimizer: "adam"
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 10
+
+continual:
+  enabled: true
+  scenario: "class_incremental"
+  num_tasks: 5
+  task_order: "sequential"
+  eval_per_task: true
+  memory_buffer:
+    enabled: true
+    size: 200
+    strategy: "reservoir"
+
+dataset:
+  name: "split_mnist"
+  root: "./data"
+  num_tasks: 5
+
+evaluation:
+  metrics:
+    - "accuracy"
+    - "average_accuracy"
+    - "forgetting"
+    - "backward_transfer"
+    - "forward_transfer"
+    - "per_task_accuracy"
+    - "spike_count"
+    - "firing_rate"
+    - "sparsity"
+
+visualization:
+  enabled: true
+  continual_curves: true
+  per_task_analysis: true

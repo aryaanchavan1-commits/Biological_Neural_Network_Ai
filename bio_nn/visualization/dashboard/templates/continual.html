@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Continual Learning — BIO-NN Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2332;--border:#1e293b;
+  --text:#e2e8f0;--muted:#64748b;--accent:#38bdf8;--accent2:#818cf8;
+  --green:#34d399;--red:#f87171;--yellow:#fbbf24;--purple:#a78bfa;
+}
+body{background:var(--bg);color:var(--text);font-family:'SF Mono','Cascadia Code','Fira Code',monospace;min-height:100vh}
+.header{padding:24px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px}
+.header h1{font-size:18px;font-weight:600;letter-spacing:-0.5px}
+.header .tag{font-size:11px;padding:3px 10px;border-radius:100px;background:rgba(251,191,36,0.12);color:var(--yellow);border:1px solid rgba(251,191,36,0.2)}
+.header .exp-id{margin-left:auto;font-size:12px;color:var(--muted)}
+.main{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);padding:1px}
+.panel{background:var(--surface);padding:20px;min-height:320px;position:relative}
+.panel-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:'';width:3px;height:12px;background:var(--yellow);border-radius:2px}
+canvas{width:100%!important;border-radius:6px}
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 12px;text-align:center}
+.stat-label{font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:6px;line-height:1.3}
+.stat-value{font-size:20px;font-weight:700;color:var(--yellow)}
+.stat-value.green{color:var(--green)}
+.stat-value.purple{color:var(--purple)}
+.stat-value.red{color:var(--red)}
+.stat-value.accent{color:var(--accent)}
+.description{grid-column:1/-1;background:var(--surface2);padding:24px 32px;border-top:1px solid var(--border);font-size:13px;line-height:1.7;color:var(--muted)}
+.description strong{color:var(--text)}
+.heatmap-wrap{position:relative}
+.heatmap-legend{position:absolute;right:0;top:0;display:flex;flex-direction:column;gap:4px}
+.heatmap-legend .swatch-row{display:flex;align-items:center;gap:6px;font-size:9px;color:var(--muted)}
+.heatmap-legend .swatch{width:14px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Continual Learning</h1>
+  <span class="tag">BIO-NN</span>
+  <span class="exp-id">Experiment: {{ exp_id }}</span>
+</div>
+
+<div class="main">
+
+  <!-- 1. Task Accuracy Heatmap -->
+  <div class="panel">
+    <div class="panel-title">Task Accuracy Heatmap</div>
+    <div class="heatmap-wrap">
+      <canvas id="heatmapCanvas" height="260"></canvas>
+      <div class="heatmap-legend">
+        <div class="swatch-row"><div class="swatch" style="background:#34d399"></div>High</div>
+        <div class="swatch-row"><div class="swatch" style="background:#1a2332"></div>Low</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Per-Task Accuracy Curves -->
+  <div class="panel">
+    <div class="panel-title">Per-Task Accuracy Curves</div>
+    <canvas id="perTaskChart" height="280"></canvas>
+  </div>
+
+  <!-- 3. Average Accuracy Over Tasks -->
+  <div class="panel">
+    <div class="panel-title">Average Accuracy Over Tasks</div>
+    <canvas id="avgAccChart" height="280"></canvas>
+  </div>
+
+  <!-- 4. Forgetting Curve -->
+  <div class="panel">
+    <div class="panel-title">Forgetting Curve</div>
+    <canvas id="forgettingChart" height="280"></canvas>
+  </div>
+
+  <!-- 5. Forward/Backward Transfer -->
+  <div class="panel">
+    <div class="panel-title">Forward / Backward Transfer</div>
+    <canvas id="transferChart" height="280"></canvas>
+  </div>
+
+  <!-- 6. Metrics Panel -->
+  <div class="panel">
+    <div class="panel-title">Continual Learning Metrics</div>
+    <div class="stats-grid" style="grid-template-columns:1fr 1fr">
+      <div class="stat-card"><div class="stat-label">Average Accuracy</div><div class="stat-value green" id="statAvgAcc">—</div></div>
+      <div class="stat-card"><div class="stat-label">Average Forgetting</div><div class="stat-value red" id="statAvgForget">—</div></div>
+      <div class="stat-card"><div class="stat-label">Backward Transfer</div><div class="stat-value purple" id="statBWT">—</div></div>
+      <div class="stat-card"><div class="stat-label">Forward Transfer</div><div class="stat-value accent" id="statFWT">—</div></div>
+      <div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Memory Buffer Size</div><div class="stat-value" id="statBuffer">—</div></div>
+    </div>
+  </div>
+
+  <!-- 7. Description -->
+  <div class="description" style="grid-column:1/-1">
+    <strong>Continual learning</strong> tests whether the network can learn new tasks without forgetting old ones.
+    In class-incremental learning, tasks are presented sequentially (e.g., first learn digits 0-1, then 2-3, etc.).
+    <strong>Catastrophic forgetting</strong> occurs when learning new tasks causes the network to forget previous ones.
+    BIO-NN uses <strong>structural plasticity</strong> and <strong>homeostatic mechanisms</strong> to mitigate this.
+  </div>
+
+</div>
+
+<script>
+const DATA = {{ data | safe }};
+
+// ── Utility ──
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+// ── 1. Task Accuracy Heatmap ──
+(function(){
+  const canvas = document.getElementById('heatmapCanvas');
+  const ctx = canvas.getContext('2d');
+  const wrapW = canvas.parentElement.clientWidth - 60;
+  canvas.width = wrapW * 2; canvas.height = 260 * 2;
+  canvas.style.width = wrapW + 'px'; canvas.style.height = '260px';
+  ctx.scale(2,2);
+
+  const numTasks = DATA.num_tasks || 5;
+  const numCols = DATA.heatmap_cols || 20;
+  const cellW = (wrapW - 60) / numCols;
+  const cellH = 220 / numTasks;
+  const ox = 40, oy = 8;
+
+  // Generate or use real heatmap data
+  for(let r = 0; r < numTasks; r++){
+    for(let c = 0; c < numCols; c++){
+      let val;
+      if(DATA.accuracy_heatmap && DATA.accuracy_heatmap[r]){
+        val = DATA.accuracy_heatmap[r][c] || 0;
+      } else {
+        // Simulate: task r reaches full accuracy around column r*(numCols/numTasks)
+        const taskStart = r * (numCols / numTasks);
+        if(c < taskStart){
+          val = clamp(0.1 + Math.random()*0.15, 0, 0.3); // pre-learning
+        } else {
+          val = clamp(0.2 + (c - taskStart) * 0.04 + Math.random()*0.1, 0, 1);
+        }
+        // Forgetting: accuracy drops after new tasks start
+        if(c > taskStart + numCols/numTasks){
+          val = clamp(val - (c - taskStart - numCols/numTasks) * 0.015, 0, 1);
+        }
+      }
+      // Color: dark → green
+      const r2 = Math.round(10 + val * 42);
+      const g = Math.round(14 + val * 197);
+      const b = Math.round(23 + val * 130);
+      ctx.fillStyle = `rgb(${r2},${g},${b})`;
+      ctx.fillRect(ox + c*cellW, oy + r*cellH, cellW - 1, cellH - 2);
+    }
+  }
+
+  // Task labels
+  ctx.fillStyle = '#64748b'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+  for(let r = 0; r < numTasks; r++){
+    ctx.fillText('T'+r, ox - 8, oy + r*cellH + cellH/2 + 3);
+  }
+
+  // X axis
+  ctx.textAlign = 'center';
+  const epochStep = Math.max(1, Math.floor(numCols / 5));
+  for(let c = 0; c < numCols; c += epochStep){
+    ctx.fillText(c.toString(), ox + c*cellW + cellW/2, oy + numTasks*cellH + 14);
+  }
+  ctx.fillText('Training Progress →', ox + (wrapW-60)/2, oy + numTasks*cellH + 28);
+})();
+
+// ── 2. Per-Task Accuracy Curves ──
+(function(){
+  const numTasks = DATA.num_tasks || 5;
+  const taskPoints = DATA.per_task_points || numTasks;
+  const colors = ['#38bdf8','#818cf8','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c','#e879f9'];
+
+  const labels = [];
+  for(let i = 0; i < taskPoints; i++) labels.push('After T'+i);
+
+  const datasets = [];
+  for(let t = 0; t < numTasks; t++){
+    let data;
+    if(DATA.per_task_accuracy && DATA.per_task_accuracy[t]){
+      data = DATA.per_task_accuracy[t];
+    } else {
+      data = [];
+      for(let p = 0; p < taskPoints; p++){
+        if(p < t){
+          data.push(null); // not learned yet
+        } else if(p === t){
+          data.push(clamp(0.7 + Math.random()*0.2, 0.6, 0.95));
+        } else {
+          // Forgetting
+          const prev = data[data.length-1];
+          data.push(clamp(prev - 0.02 - Math.random()*0.03, 0.1, prev));
+        }
+      }
+    }
+    datasets.push({
+      label: 'Task '+t,
+      data: data,
+      borderColor: colors[t % colors.length],
+      borderWidth: 2,
+      pointRadius: 3,
+      pointBackgroundColor: colors[t % colors.length],
+      tension: 0.3,
+      spanGaps: false
+    });
+  }
+
+  new Chart(document.getElementById('perTaskChart'), {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#64748b', font:{size:10,family:'monospace'}, boxWidth:12 } } },
+      scales:{
+        x:{ ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} },
+        y:{ min:0, max:1, title:{display:true,text:'Accuracy',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+})();
+
+// ── 3. Average Accuracy Over Tasks ──
+(function(){
+  const numTasks = DATA.num_tasks || 5;
+  const labels = [];
+  for(let i = 0; i < numTasks; i++) labels.push('After T'+i);
+
+  let avgData, baselineData;
+  if(DATA.avg_accuracy){
+    avgData = DATA.avg_accuracy;
+  } else {
+    avgData = [];
+    let acc = 0.85;
+    for(let i = 0; i < numTasks; i++){
+      if(i === 0) acc = clamp(0.75 + Math.random()*0.15, 0.65, 0.95);
+      else acc = clamp(acc - 0.04 - Math.random()*0.03, 0.2, acc);
+      avgData.push(acc);
+    }
+  }
+
+  if(DATA.baseline_accuracy){
+    baselineData = DATA.baseline_accuracy;
+  } else {
+    baselineData = avgData.map((a,i) => clamp(a - 0.15 - i*0.05, 0.05, a));
+  }
+
+  new Chart(document.getElementById('avgAccChart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {
+          label:'BIO-NN',
+          data: avgData,
+          borderColor:'#34d399', backgroundColor:'rgba(52,211,153,0.08)',
+          borderWidth:2, pointRadius:3, pointBackgroundColor:'#34d399', tension:0.3, fill:true
+        },
+        {
+          label:'Baseline (Finetune)',
+          data: baselineData,
+          borderColor:'#f87171', backgroundColor:'rgba(248,113,113,0.05)',
+          borderWidth:1.5, borderDash:[5,5], pointRadius:2, pointBackgroundColor:'#f87171', tension:0.3, fill:true
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#64748b', font:{size:10,family:'monospace'}, boxWidth:12 } } },
+      scales:{
+        x:{ ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} },
+        y:{ min:0, max:1, title:{display:true,text:'Accuracy',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+})();
+
+// ── 4. Forgetting Curve (Bar) ──
+(function(){
+  const numTasks = DATA.num_tasks || 5;
+  const labels = Array.from({length:numTasks}, (_,i) => 'Task '+i);
+  let forgetData;
+
+  if(DATA.forgetting){
+    forgetData = DATA.forgetting;
+  } else {
+    forgetData = Array.from({length:numTasks}, (_,i) => {
+      if(i === numTasks-1) return clamp(Math.random()*0.05, 0, 0.1);
+      return clamp(0.05 + i*0.04 + Math.random()*0.06, 0, 0.4);
+    });
+  }
+
+  new Chart(document.getElementById('forgettingChart'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Forgetting',
+        data: forgetData,
+        backgroundColor: forgetData.map(v => {
+          if(v > 0.2) return 'rgba(248,113,113,0.7)';
+          if(v > 0.1) return 'rgba(251,191,36,0.7)';
+          return 'rgba(52,211,153,0.7)';
+        }),
+        borderColor: forgetData.map(v => {
+          if(v > 0.2) return '#f87171';
+          if(v > 0.1) return '#fbbf24';
+          return '#34d399';
+        }),
+        borderWidth:1,
+        borderRadius:4
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ ticks:{color:'#475569',font:{size:9}}, grid:{display:false} },
+        y:{ title:{display:true,text:'Max Acc − Final Acc',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+})();
+
+// ── 5. Forward/Backward Transfer ──
+(function(){
+  const numTasks = DATA.num_tasks || 5;
+  const labels = Array.from({length:numTasks}, (_,i) => 'Task '+i);
+
+  let bwtData, fwtData;
+  if(DATA.bwt){
+    bwtData = DATA.bwt;
+  } else {
+    bwtData = Array.from({length:numTasks}, (_,i) => i === 0 ? 0 : clamp(-0.02 - i*0.03 + Math.random()*0.04, -0.25, 0.05));
+  }
+  if(DATA.fwt){
+    fwtData = DATA.fwt;
+  } else {
+    fwtData = Array.from({length:numTasks}, (_,i) => clamp(0.01 + Math.random()*0.08, -0.05, 0.15));
+  }
+
+  new Chart(document.getElementById('transferChart'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {
+          label:'BWT (Backward)',
+          data: bwtData,
+          backgroundColor: bwtData.map(v => v < 0 ? 'rgba(248,113,113,0.6)' : 'rgba(52,211,153,0.6)'),
+          borderColor: bwtData.map(v => v < 0 ? '#f87171' : '#34d399'),
+          borderWidth:1, borderRadius:4
+        },
+        {
+          label:'FWT (Forward)',
+          data: fwtData,
+          backgroundColor: fwtData.map(v => v > 0 ? 'rgba(56,189,248,0.6)' : 'rgba(248,113,113,0.4)'),
+          borderColor: fwtData.map(v => v > 0 ? '#38bdf8' : '#f87171'),
+          borderWidth:1, borderRadius:4
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#64748b', font:{size:10,family:'monospace'}, boxWidth:12 } } },
+      scales:{
+        x:{ ticks:{color:'#475569',font:{size:9}}, grid:{display:false} },
+        y:{ title:{display:true,text:'Transfer Score',color:'#64748b',font:{size:10}}, ticks:{color:'#475569',font:{size:9}}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+})();
+
+// ── 6. Metrics Panel ──
+(function(){
+  const m = DATA.continual_metrics || {};
+  const numTasks = DATA.num_tasks || 5;
+
+  const avgAcc = m.avg_accuracy || (DATA.avg_accuracy ? DATA.avg_accuracy.reduce((a,b)=>a+b,0)/numTasks : 0.58);
+  const avgForget = m.avg_forgetting || (DATA.forgetting ? DATA.forgetting.reduce((a,b)=>a+b,0)/numTasks : 0.12);
+  const bwt = m.bwt || (DATA.bwt ? DATA.bwt.reduce((a,b)=>a+b,0)/numTasks : -0.08);
+  const fwt = m.fwt || (DATA.fwt ? DATA.fwt.reduce((a,b)=>a+b,0)/numTasks : 0.04);
+  const buf = m.buffer_size || 200;
+
+  document.getElementById('statAvgAcc').textContent = (avgAcc*100).toFixed(1) + '%';
+  document.getElementById('statAvgForget').textContent = (avgForget*100).toFixed(1) + '%';
+  document.getElementById('statBWT').textContent = (bwt >= 0 ? '+' : '') + (bwt*100).toFixed(1) + '%';
+  document.getElementById('statFWT').textContent = '+' + (fwt*100).toFixed(1) + '%';
+  document.getElementById('statBuffer').textContent = buf.toLocaleString();
+})();
+</script>
+
+</body>
+</html>

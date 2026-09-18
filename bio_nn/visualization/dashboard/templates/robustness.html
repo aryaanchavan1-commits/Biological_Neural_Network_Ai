@@ -1,0 +1,239 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO-NN — Robustness Evaluation</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0a0e17;--surface:#111827;--surface2:#1a2236;--border:#1e293b;
+    --text:#e2e8f0;--text-dim:#94a3b8;--accent:#22d3ee;--accent2:#818cf8;
+    --green:#34d399;--red:#f87171;--yellow:#fbbf24;--radius:8px;
+  }
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  .nav{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:50}
+  .nav .logo{font-weight:700;font-size:1.15rem;color:var(--accent)}
+  .nav a{color:var(--text-dim);font-size:.875rem;padding:4px 10px;border-radius:var(--radius)}.nav a:hover,.nav a.active{color:var(--text);background:var(--surface2)}
+  .container{max-width:1280px;margin:0 auto;padding:32px 24px}
+  h1{font-size:1.75rem;margin-bottom:4px}
+  h2{font-size:1.15rem;margin:28px 0 14px}
+  .desc{color:var(--text-dim);margin-bottom:28px;font-size:.925rem;max-width:720px}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+  .chart-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .chart-box h3{font-size:.9rem;color:var(--text-dim);margin-bottom:14px}
+  canvas{width:100%!important;max-height:320px}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+  .stat-card .label{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:6px}
+  .stat-card .value{font-size:1.5rem;font-weight:700}
+  .stat-card .sub{font-size:.8rem;color:var(--text-dim);margin-top:4px}
+  .stat-card.good .value{color:var(--green)}
+  .stat-card.warn .value{color:var(--yellow)}
+  .stat-card.bad .value{color:var(--red)}
+  .detail-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .detail-card h3{font-size:.9rem;color:var(--text-dim);margin-bottom:14px}
+  .drop-list{list-style:none}
+  .drop-list li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.875rem}
+  .drop-list li:last-child{border-bottom:none}
+  .drop-name{width:140px;flex-shrink:0}
+  .drop-bar{flex:1;height:8px;border-radius:4px;background:var(--border);overflow:hidden}
+  .drop-bar-fill{height:100%;border-radius:4px;transition:width .5s}
+  .drop-pct{width:60px;text-align:right;font-weight:600;font-size:.85rem}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-dim)}
+  .legend-swatch{width:12px;height:12px;border-radius:3px}
+  @media(max-width:800px){.charts-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="logo">BIO-NN</span>
+  <a href="/dashboard">Experiments</a>
+  <a href="/compare">Compare</a>
+  <a href="/robustness" class="active">Robustness</a>
+  <a href="/config">Config</a>
+  <a href="/about">About</a>
+</nav>
+
+<div class="container">
+  <h1>Robustness Evaluation</h1>
+  <p class="desc">Robustness testing evaluates how well the network performs under adverse conditions. Gaussian noise adds random perturbations to inputs. Salt-and-pepper noise randomly zeroes or saturates features. Feature dropout randomly removes input features. Higher robustness means the network degrades gracefully rather than failing catastrophically.</p>
+
+  <div id="summaryGrid" class="summary-grid"></div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Noise Robustness</h3>
+      <div class="legend" id="noiseLegend"></div>
+      <canvas id="noiseChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>OOD Detection</h3>
+      <canvas id="oodChart"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Corruption Comparison &mdash; BIO-NN vs Baseline</h3>
+      <canvas id="corruptionChart"></canvas>
+    </div>
+    <div class="detail-card">
+      <h3>Degradation by Noise Type</h3>
+      <ul class="drop-list" id="dropList"></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+const rawData = {{ data | tojson }};
+const noiseLevels = rawData.noise_levels || [0,10,20,30,40,50];
+const noiseTypes = rawData.noise_types || ['gaussian','salt_pepper','feature_dropout'];
+const noiseLabels = {gaussian:'Gaussian',salt_pepper:'Salt & Pepper',feature_dropout:'Feature Dropout'};
+const noiseColors = {gaussian:'#22d3ee',salt_pepper:'#818cf8',feature_dropout:'#34d399'};
+const noiseData = rawData.noise_robustness || {};
+const oodData = rawData.ood || {};
+const corruptionData = rawData.corruptions || {};
+const baselineCorruption = rawData.baseline_corruptions || {};
+const baselineAccuracy = rawData.baseline_accuracy || rawData.clean_accuracy || 0.85;
+const cleanAcc = rawData.clean_accuracy || (noiseData.gaussian ? noiseData.gaussian[0] / 100 : 0.85);
+
+function renderSummary() {
+  const grid = document.getElementById('summaryGrid');
+  const gaussDrop = noiseData.gaussian ? cleanAcc - noiseData.gaussian[noiseData.gaussian.length - 1] / 100 : 0;
+  const worstType = noiseTypes.reduce(function(worst, t) {
+    var d = noiseData[t] ? cleanAcc - noiseData[t][noiseData[t].length - 1] / 100 : 0;
+    return d > worst.d ? {t: t, d: d} : worst;
+  }, {t: '-', d: 0});
+  const bestType = noiseTypes.reduce(function(best, t) {
+    var d = noiseData[t] ? cleanAcc - noiseData[t][noiseData[t].length - 1] / 100 : 1;
+    return d < best.d ? {t: t, d: d} : best;
+  }, {t: '-', d: 1});
+  const oodAcc = oodData.accuracy || oodData.ood_accuracy || 0;
+  grid.innerHTML =
+    '<div class="stat-card good"><div class="label">Clean Accuracy</div><div class="value">' + (cleanAcc * 100).toFixed(1) + '%</div><div class="sub">No noise applied</div></div>' +
+    '<div class="stat-card ' + (gaussDrop < 0.05 ? 'good' : gaussDrop < 0.15 ? 'warn' : 'bad') + '"><div class="label">Gaussian Degradation</div><div class="value">-' + (gaussDrop * 100).toFixed(1) + '%</div><div class="sub">At max noise level</div></div>' +
+    '<div class="stat-card ' + (oodAcc > cleanAcc * 0.8 ? 'good' : 'warn') + '"><div class="label">OOD Detection</div><div class="value">' + (oodAcc * 100).toFixed(1) + '%</div><div class="sub">Out-of-distribution accuracy</div></div>' +
+    '<div class="stat-card bad"><div class="label">Most Vulnerable</div><div class="value" style="font-size:1.1rem">' + (noiseLabels[worstType.t] || '-') + '</div><div class="sub">-' + (worstType.d * 100).toFixed(1) + '% drop</div></div>' +
+    '<div class="stat-card good"><div class="label">Most Robust</div><div class="value" style="font-size:1.1rem">' + (noiseLabels[bestType.t] || '-') + '</div><div class="sub">-' + (bestType.d * 100).toFixed(1) + '% drop</div></div>';
+}
+
+var noiseChartInst, oodChartInst, corrChartInst;
+
+function renderNoiseChart() {
+  var datasets = noiseTypes.map(function(t) {
+    return {
+      label: noiseLabels[t] || t,
+      data: (noiseData[t] || []).map(function(v) { return v > 1 ? v / 100 : v; }),
+      borderColor: noiseColors[t],
+      backgroundColor: noiseColors[t] + '20',
+      borderWidth: 2.5,
+      pointRadius: 4,
+      pointBackgroundColor: noiseColors[t],
+      tension: 0.3,
+      fill: false
+    };
+  });
+  document.getElementById('noiseLegend').innerHTML = noiseTypes.map(function(t) {
+    return '<div class="legend-item"><span class="legend-swatch" style="background:' + noiseColors[t] + '"></span>' + (noiseLabels[t] || t) + '</div>';
+  }).join('');
+  if (noiseChartInst) noiseChartInst.destroy();
+  noiseChartInst = new Chart(document.getElementById('noiseChart'), {
+    type: 'line',
+    data: {labels: noiseLevels.map(function(n) { return n + '%'; }), datasets: datasets},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {
+        x: {title: {display: true, text: 'Noise Level', color: '#94a3b8'}, ticks: {color: '#94a3b8'}, grid: {color: '#1e293b'}},
+        y: {title: {display: true, text: 'Accuracy', color: '#94a3b8'}, ticks: {color: '#94a3b8'}, grid: {color: '#1e293b'}, min: 0, max: 1}
+      }
+    }
+  });
+}
+
+function renderOODChart() {
+  var labels = ['In-Distribution', 'Out-of-Distribution'];
+  var accs = [oodData.in_distribution || oodData.id_accuracy || cleanAcc, oodData.accuracy || oodData.ood_accuracy || 0];
+  var conf = [oodData.confidence || oodData.id_confidence || cleanAcc, oodData.ood_confidence || 0];
+  if (oodChartInst) oodChartInst.destroy();
+  oodChartInst = new Chart(document.getElementById('oodChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {label: 'Accuracy', data: accs, backgroundColor: ['#22d3eecc', '#818cf8cc'], borderColor: ['#22d3ee', '#818cf8'], borderWidth: 1, borderRadius: 6},
+        {label: 'Confidence', data: conf, backgroundColor: ['#22d3ee44', '#818cf844'], borderColor: ['#22d3ee80', '#818cf880'], borderWidth: 1, borderRadius: 6}
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {labels: {color: '#94a3b8', font: {size: 11}}}},
+      scales: {
+        x: {ticks: {color: '#94a3b8'}, grid: {color: '#1e293b'}},
+        y: {ticks: {color: '#94a3b8'}, grid: {color: '#1e293b'}, min: 0, max: 1}
+      }
+    }
+  });
+}
+
+function renderCorruptionChart() {
+  var corrTypes = Object.keys(corruptionData);
+  var labels = corrTypes.map(function(c) { return c.replace(/_/g, ' '); });
+  var bioData = corrTypes.map(function(c) {
+    var v = corruptionData[c];
+    return typeof v === 'object' ? (v.bio_nn || v.accuracy) : v;
+  });
+  var baseData = corrTypes.map(function(c) {
+    if (baselineCorruption[c] != null) return baselineCorruption[c];
+    return typeof corruptionData[c] === 'object' ? corruptionData[c].baseline : baselineAccuracy;
+  });
+  if (corrChartInst) corrChartInst.destroy();
+  corrChartInst = new Chart(document.getElementById('corruptionChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {label: 'BIO-NN', data: bioData, backgroundColor: '#22d3eecc', borderColor: '#22d3ee', borderWidth: 1, borderRadius: 4},
+        {label: 'Baseline', data: baseData, backgroundColor: '#94a3b866', borderColor: '#94a3b8', borderWidth: 1, borderRadius: 4}
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {labels: {color: '#94a3b8', font: {size: 11}}}},
+      scales: {
+        x: {ticks: {color: '#94a3b8', maxRotation: 45}, grid: {color: '#1e293b'}},
+        y: {ticks: {color: '#94a3b8'}, grid: {color: '#1e293b'}, min: 0, max: 1}
+      }
+    }
+  });
+}
+
+function renderDropList() {
+  var list = document.getElementById('dropList');
+  var drops = noiseTypes.map(function(t) {
+    var vals = noiseData[t] || [];
+    var last = vals.length ? vals[vals.length - 1] : 0;
+    var v = last > 1 ? last / 100 : last;
+    return {type: t, drop: cleanAcc - v};
+  }).sort(function(a, b) { return b.drop - a.drop; });
+  var maxDrop = Math.max.apply(null, drops.map(function(d) { return Math.abs(d.drop); }).concat([0.001]));
+  list.innerHTML = drops.map(function(d) {
+    var pct = Math.abs(d.drop);
+    var w = (pct / maxDrop * 100).toFixed(0);
+    var color = pct < 0.03 ? 'var(--green)' : pct < 0.1 ? 'var(--yellow)' : 'var(--red)';
+    return '<li><span class="drop-name">' + (noiseLabels[d.type] || d.type) + '</span><div class="drop-bar"><div class="drop-bar-fill" style="width:' + w + '%;background:' + color + '"></div></div><span class="drop-pct" style="color:' + color + '">-' + (pct * 100).toFixed(1) + '%</span></li>';
+  }).join('');
+}
+
+renderSummary();
+renderNoiseChart();
+renderOODChart();
+renderCorruptionChart();
+renderDropList();
+</script>
+</body>
+</html>
