@@ -85,6 +85,9 @@ class TrainingEngine:
         for module in self.model.modules():
             if hasattr(module, "reset_hidden"):
                 module.reset_hidden()
+        # Also reset BioNNModel state
+        if hasattr(self.model, "reset_state"):
+            self.model.reset_state()
 
     def _forward_snn(self, data: torch.Tensor) -> Dict[str, Any]:
         """Run the SNN for ``self.timestep`` time steps.
@@ -120,6 +123,9 @@ class TrainingEngine:
                     outputs.append(out["output"])
                 elif "spikes" in out:
                     outputs.append(out["spikes"])
+            elif isinstance(out, tuple):
+                # BioNNModel.forward() returns (output,) or (output, details)
+                outputs.append(out[0])
             else:
                 outputs.append(out)
 
